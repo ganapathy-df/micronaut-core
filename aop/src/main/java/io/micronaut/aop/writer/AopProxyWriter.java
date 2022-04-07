@@ -631,18 +631,14 @@ public class AopProxyWriter extends AbstractClassFileWriter implements ProxyingB
 
         // store the proxy method instance in a local variable
         // ie ExecutableMethod executableMethod = this.proxyMethods[0];
-        overriddenMethodGenerator.loadThis();
-        overriddenMethodGenerator.getField(proxyType, FIELD_PROXY_METHODS, FIELD_TYPE_PROXY_METHODS);
-        overriddenMethodGenerator.push(index);
+        pushProxyMethod_25356(overriddenMethodGenerator, FIELD_PROXY_METHODS, FIELD_TYPE_PROXY_METHODS, index);
         overriddenMethodGenerator.visitInsn(AALOAD);
         int methodProxyVar = overriddenMethodGenerator.newLocal(EXECUTABLE_METHOD_TYPE);
         overriddenMethodGenerator.storeLocal(methodProxyVar);
 
         // store the interceptors in a local variable
         // ie Interceptor[] interceptors = this.interceptors[0];
-        overriddenMethodGenerator.loadThis();
-        overriddenMethodGenerator.getField(proxyType, FIELD_INTERCEPTORS, FIELD_TYPE_INTERCEPTORS);
-        overriddenMethodGenerator.push(index);
+        pushProxyMethod_25356(overriddenMethodGenerator, FIELD_INTERCEPTORS, FIELD_TYPE_INTERCEPTORS, index);
         overriddenMethodGenerator.visitInsn(AALOAD);
         int interceptorsLocalVar = overriddenMethodGenerator.newLocal(INTERCEPTOR_ARRAY_TYPE);
         overriddenMethodGenerator.storeLocal(interceptorsLocalVar);
@@ -986,11 +982,7 @@ public class AopProxyWriter extends AbstractClassFileWriter implements ProxyingB
 
                     // The following will initialize the array of $proxyMethod instances
                     // Eg. this.$proxyMethods[0] = $PARENT_BEAN.getRequiredMethod("test", new Class[]{String.class});
-                    proxyConstructorGenerator.loadThis();
-
-                    // Step 1: dereference the array - this.$proxyMethods[0]
-                    proxyConstructorGenerator.getField(proxyType, FIELD_PROXY_METHODS, FIELD_TYPE_PROXY_METHODS);
-                    proxyConstructorGenerator.push(i);
+                    pushProxyMethod_25356(proxyConstructorGenerator, FIELD_PROXY_METHODS, FIELD_TYPE_PROXY_METHODS, i);
 
                     // Step 2: lookup the Method instance from the declaring type
                     // context.getProxyTargetMethod("test", new Class[]{String.class});
@@ -1038,9 +1030,7 @@ public class AopProxyWriter extends AbstractClassFileWriter implements ProxyingB
 
                 // The following will initialize the array of $proxyMethod instances
                 // Eg. this.proxyMethods[0] = new $blah0();
-                proxyConstructorGenerator.loadThis();
-                proxyConstructorGenerator.getField(proxyType, FIELD_PROXY_METHODS, FIELD_TYPE_PROXY_METHODS);
-                proxyConstructorGenerator.push(i);
+                pushProxyMethod_25356(proxyConstructorGenerator, FIELD_PROXY_METHODS, FIELD_TYPE_PROXY_METHODS, i);
                 // getExecutableMethodByIndex
                 proxyConstructorGenerator.loadLocal(executableMethodsDefinitionIndex);
                 proxyConstructorGenerator.push(methodIndex);
@@ -1566,9 +1556,7 @@ public class AopProxyWriter extends AbstractClassFileWriter implements ProxyingB
     private void pushResolveInterceptorsCall(GeneratorAdapter proxyConstructorGenerator, int i, boolean isIntroduction) {
         // The following will initialize the array of interceptor instances
         // eg. this.interceptors[0] = InterceptorChain.resolveAroundInterceptors(beanContext, proxyMethods[0], interceptors);
-        proxyConstructorGenerator.loadThis();
-        proxyConstructorGenerator.getField(proxyType, FIELD_INTERCEPTORS, FIELD_TYPE_INTERCEPTORS);
-        proxyConstructorGenerator.push(i);
+        pushProxyMethod_25356(proxyConstructorGenerator, FIELD_INTERCEPTORS, FIELD_TYPE_INTERCEPTORS, i);
 
         // First argument. The bean context
         proxyConstructorGenerator.loadArg(beanContextArgumentIndex);
@@ -1587,6 +1575,14 @@ public class AopProxyWriter extends AbstractClassFileWriter implements ProxyingB
             proxyConstructorGenerator.invokeStatic(TYPE_INTERCEPTOR_CHAIN, Method.getMethod(RESOLVE_AROUND_INTERCEPTORS_METHOD));
         }
         proxyConstructorGenerator.visitInsn(AASTORE);
+    }
+
+    private void pushProxyMethod_25356(final GeneratorAdapter proxyConstructorGenerator, final String FIELD_PROXY_METHODS, final Type FIELD_TYPE_PROXY_METHODS, final int i) {
+        proxyConstructorGenerator.loadThis();
+        
+        // Step 1: dereference the array - this.$proxyMethods[0]
+        proxyConstructorGenerator.getField(proxyType, FIELD_PROXY_METHODS, FIELD_TYPE_PROXY_METHODS);
+        proxyConstructorGenerator.push(i);
     }
 
     private void processAlreadyVisitedMethods(BeanDefinitionWriter parent) {
