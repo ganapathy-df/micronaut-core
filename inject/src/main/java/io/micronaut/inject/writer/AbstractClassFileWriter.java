@@ -319,11 +319,7 @@ public abstract class AbstractClassFileWriter implements Opcodes, OriginatingEle
         generatorAdapter.push(argumentName);
 
         // Argument.create( .. )
-        invokeInterfaceStaticMethod(
-                generatorAdapter,
-                Argument.class,
-                METHOD_CREATE_ARGUMENT_SIMPLE
-        );
+        invokeStaticMethodInvocation_36742(generatorAdapter, METHOD_CREATE_ARGUMENT_SIMPLE);
     }
 
     /**
@@ -357,11 +353,7 @@ public abstract class AbstractClassFileWriter implements Opcodes, OriginatingEle
             );
         } else {
             // Argument.create( .. )
-            invokeInterfaceStaticMethod(
-                    generatorAdapter,
-                    Argument.class,
-                    METHOD_CREATE_ARGUMENT_SIMPLE
-            );
+            invokeStaticMethodInvocation_36742(generatorAdapter, METHOD_CREATE_ARGUMENT_SIMPLE);
         }
     }
 
@@ -399,11 +391,7 @@ public abstract class AbstractClassFileWriter implements Opcodes, OriginatingEle
         boolean hasAnnotationMetadata = annotationMetadata != AnnotationMetadata.EMPTY_METADATA;
 
         if (!hasAnnotationMetadata && typeArguments.isEmpty()) {
-            invokeInterfaceStaticMethod(
-                    generatorAdapter,
-                    Argument.class,
-                    METHOD_CREATE_ARGUMENT_SIMPLE
-            );
+            invokeStaticMethodInvocation_36742(generatorAdapter, METHOD_CREATE_ARGUMENT_SIMPLE);
             return;
         }
 
@@ -474,11 +462,7 @@ public abstract class AbstractClassFileWriter implements Opcodes, OriginatingEle
         }
 
         // Argument.create( .. )
-        invokeInterfaceStaticMethod(
-                generatorAdapter,
-                Argument.class,
-                METHOD_CREATE_ARGUMENT_WITH_ANNOTATION_METADATA_CLASS_GENERICS
-        );
+        invokeStaticMethodInvocation_36742(generatorAdapter, METHOD_CREATE_ARGUMENT_WITH_ANNOTATION_METADATA_CLASS_GENERICS);
     }
 
     /**
@@ -619,11 +603,7 @@ public abstract class AbstractClassFileWriter implements Opcodes, OriginatingEle
         boolean hasVariableName = !variableName.equals(argumentName);
 
         if (!hasAnnotations && !hasTypeArguments && !isTypeVariable) {
-            invokeInterfaceStaticMethod(
-                    generatorAdapter,
-                    Argument.class,
-                    METHOD_CREATE_ARGUMENT_SIMPLE
-            );
+            invokeStaticMethodInvocation_36742(generatorAdapter, METHOD_CREATE_ARGUMENT_SIMPLE);
             return;
         }
 
@@ -670,12 +650,16 @@ public abstract class AbstractClassFileWriter implements Opcodes, OriginatingEle
         } else {
 
             // Argument.create( .. )
-            invokeInterfaceStaticMethod(
-                    generatorAdapter,
-                    Argument.class,
-                    METHOD_CREATE_ARGUMENT_WITH_ANNOTATION_METADATA_GENERICS
-            );
+            invokeStaticMethodInvocation_36742(generatorAdapter, METHOD_CREATE_ARGUMENT_WITH_ANNOTATION_METADATA_GENERICS);
         }
+    }
+
+    private static void invokeStaticMethodInvocation_36742(final GeneratorAdapter generatorAdapter, final Method METHOD_CREATE_ARGUMENT_SIMPLE) {
+        invokeInterfaceStaticMethod(
+                generatorAdapter,
+                Argument.class,
+                METHOD_CREATE_ARGUMENT_SIMPLE
+        );
     }
 
     /**
