@@ -1904,11 +1904,7 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
             );
         }
         // 4th property value
-        injectMethodVisitor.push(value);
-        // 5th cli property name
-        injectMethodVisitor.push(getCliPrefix(fieldElement.getName()));
-
-        pushInvokeMethodOnSuperClass(injectMethodVisitor, GET_PROPERTY_VALUE_FOR_FIELD);
+        visitMethod_44002(injectMethodVisitor, value, fieldElement, GET_PROPERTY_VALUE_FOR_FIELD);
         // cast the return value to the correct type
         pushCastToType(injectMethodVisitor, fieldElement.getType());
     }
@@ -2516,11 +2512,7 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
         // 4th argument the argument index
         injectMethodVisitor.push(i);
         // 5th property value
-        injectMethodVisitor.push(value);
-        // 6 cli property name
-        injectMethodVisitor.push(getCliPrefix(entry.getName()));
-
-        pushInvokeMethodOnSuperClass(injectMethodVisitor, GET_PROPERTY_VALUE_FOR_METHOD_ARGUMENT);
+        visitMethod_44002(injectMethodVisitor, value, entry, GET_PROPERTY_VALUE_FOR_METHOD_ARGUMENT);
         // cast the return value to the correct type
         pushCastToType(injectMethodVisitor, entry);
     }
@@ -2580,11 +2572,7 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
             );
         }
         // 5th property value
-        injectMethodVisitor.push(value);
-        // 6 cli property name
-        injectMethodVisitor.push(getCliPrefix(entry.getName()));
-
-        pushInvokeMethodOnSuperClass(injectMethodVisitor, GET_PROPERTY_VALUE_FOR_SETTER);
+        visitMethod_44002(injectMethodVisitor, value, entry, GET_PROPERTY_VALUE_FOR_SETTER);
         // cast the return value to the correct type
         pushCastToType(injectMethodVisitor, entry);
     }
@@ -2728,11 +2716,7 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
         }
 
         // 5th property value
-        injectMethodVisitor.push(value);
-        // 6 cli property name
-        injectMethodVisitor.push(getCliPrefix(entry.getName()));
-
-        pushInvokeMethodOnSuperClass(injectMethodVisitor, GET_PROPERTY_PLACEHOLDER_VALUE_FOR_SETTER);
+        visitMethod_44002(injectMethodVisitor, value, entry, GET_PROPERTY_PLACEHOLDER_VALUE_FOR_SETTER);
         // cast the return value to the correct type
         pushCastToType(injectMethodVisitor, entry);
     }
@@ -3649,13 +3633,17 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
         // 4th argument the argument index
         injectMethodVisitor.push(i);
         // 5th property value
+        visitMethod_44002(injectMethodVisitor, value, entry, GET_PROPERTY_VALUE_FOR_CONSTRUCTOR_ARGUMENT);
+        // cast the return value to the correct type
+        pushCastToType(injectMethodVisitor, entry);
+    }
+
+    private <T0 extends TypedElement> void visitMethod_44002(final GeneratorAdapter injectMethodVisitor, final String value, final T0 entry, final Method GET_PROPERTY_VALUE_FOR_CONSTRUCTOR_ARGUMENT) {
         injectMethodVisitor.push(value);
         // 6 cli property name
         injectMethodVisitor.push(getCliPrefix(entry.getName()));
-
+        
         pushInvokeMethodOnSuperClass(injectMethodVisitor, GET_PROPERTY_VALUE_FOR_CONSTRUCTOR_ARGUMENT);
-        // cast the return value to the correct type
-        pushCastToType(injectMethodVisitor, entry);
     }
 
     private void pushInvokeGetPropertyPlaceholderValueForConstructor(GeneratorAdapter injectMethodVisitor, int i, ParameterElement entry, String value) {
