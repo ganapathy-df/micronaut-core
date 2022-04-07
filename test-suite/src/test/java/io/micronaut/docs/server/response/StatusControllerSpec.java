@@ -15,6 +15,7 @@
  */
 package io.micronaut.docs.server.response;
 
+import io.micronaut.docs.ExtractedSeparateClass30933;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
@@ -39,9 +40,7 @@ public class StatusControllerSpec {
     @BeforeClass
     public static void setupServer() {
         server = ApplicationContext.run(EmbeddedServer.class, Collections.singletonMap("spec.name", "httpstatus"));
-        client = server
-                .getApplicationContext()
-                .createBean(HttpClient.class, server.getURL());
+        client = ExtractedSeparateClass30933.getClient16414(server);
     }
 
     @AfterClass

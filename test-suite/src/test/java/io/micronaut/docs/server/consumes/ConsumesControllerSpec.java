@@ -15,6 +15,7 @@
  */
 package io.micronaut.docs.server.consumes;
 
+import io.micronaut.docs.ExtractedSeparateClass30933;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.core.annotation.Introspected;
 import io.micronaut.http.HttpRequest;
@@ -37,9 +38,7 @@ public class ConsumesControllerSpec {
     @BeforeClass
     public static void setupServer() {
         server = ApplicationContext.run(EmbeddedServer.class, Collections.singletonMap("spec.name", "consumesspec"));
-        client = server
-                .getApplicationContext()
-                .createBean(HttpClient.class, server.getURL());
+        client = ExtractedSeparateClass30933.getClient16414(server);
     }
 
     @AfterClass
