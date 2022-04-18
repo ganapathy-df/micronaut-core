@@ -1890,18 +1890,7 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
         if (keepConfPropInjectPoints) {
             resolveFieldArgument(injectMethodVisitor, currentFieldIndex);
         } else {
-            pushCreateArgument(
-                    beanFullClassName,
-                    beanDefinitionType,
-                    classWriter,
-                    injectMethodVisitor,
-                    fieldElement.getName(),
-                    fieldElement.getGenericType(),
-                    mutableAnnotationMetadata,
-                    fieldElement.getGenericType().getTypeArguments(),
-                    new HashMap<>(),
-                    loadTypeMethods
-            );
+            injectType_83789(injectMethodVisitor, fieldElement, mutableAnnotationMetadata);
         }
         // 4th property value
         injectMethodVisitor.push(value);
@@ -1928,18 +1917,7 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
         if (keepConfPropInjectPoints) {
             resolveFieldArgument(injectMethodVisitor, currentFieldIndex);
         } else {
-            pushCreateArgument(
-                    beanFullClassName,
-                    beanDefinitionType,
-                    classWriter,
-                    injectMethodVisitor,
-                    fieldElement.getName(),
-                    fieldElement.getGenericType(),
-                    mutableAnnotationMetadata,
-                    fieldElement.getGenericType().getTypeArguments(),
-                    new HashMap<>(),
-                    loadTypeMethods
-            );
+            injectType_83789(injectMethodVisitor, fieldElement, mutableAnnotationMetadata);
         }
         // 4th property value
         injectMethodVisitor.push(value);
@@ -2566,18 +2544,7 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
         if (keepConfPropInjectPoints) {
             resolveMethodArgument(injectMethodVisitor, currentMethodIndex, 0);
         } else {
-            pushCreateArgument(
-                    beanFullClassName,
-                    beanDefinitionType,
-                    classWriter,
-                    injectMethodVisitor,
-                    entry.getName(),
-                    entry.getGenericType(),
-                    annotationMetadata,
-                    entry.getGenericType().getTypeArguments(),
-                    new HashMap<>(),
-                    loadTypeMethods
-            );
+            injectType_83789(injectMethodVisitor, entry, annotationMetadata);
         }
         // 5th property value
         injectMethodVisitor.push(value);
@@ -2611,18 +2578,7 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
         if (keepConfPropInjectPoints) {
             resolveMethodArgument(injectMethodVisitor, currentMethodIndex, 0);
         } else {
-            pushCreateArgument(
-                    beanFullClassName,
-                    beanDefinitionType,
-                    classWriter,
-                    injectMethodVisitor,
-                    entry.getName(),
-                    entry.getGenericType(),
-                    annotationMetadata,
-                    entry.getGenericType().getTypeArguments(),
-                    new HashMap<>(),
-                    loadTypeMethods
-            );
+            injectType_83789(injectMethodVisitor, entry, annotationMetadata);
         }
 
         // push qualifier
@@ -2713,18 +2669,7 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
         if (keepConfPropInjectPoints) {
             resolveMethodArgument(injectMethodVisitor, currentMethodIndex, 0);
         } else {
-            pushCreateArgument(
-                    beanFullClassName,
-                    beanDefinitionType,
-                    classWriter,
-                    injectMethodVisitor,
-                    entry.getName(),
-                    entry.getGenericType(),
-                    annotationMetadata,
-                    entry.getGenericType().getTypeArguments(),
-                    new HashMap<>(),
-                    loadTypeMethods
-            );
+            injectType_83789(injectMethodVisitor, entry, annotationMetadata);
         }
 
         // 5th property value
@@ -2735,6 +2680,21 @@ public class BeanDefinitionWriter extends AbstractClassFileWriter implements Bea
         pushInvokeMethodOnSuperClass(injectMethodVisitor, GET_PROPERTY_PLACEHOLDER_VALUE_FOR_SETTER);
         // cast the return value to the correct type
         pushCastToType(injectMethodVisitor, entry);
+    }
+
+    private <T1 extends AnnotationMetadata, T0 extends TypedElement> void injectType_83789(final GeneratorAdapter injectMethodVisitor, final T0 fieldElement, final T1 mutableAnnotationMetadata) {
+        pushCreateArgument(
+                beanFullClassName,
+                beanDefinitionType,
+                classWriter,
+                injectMethodVisitor,
+                fieldElement.getName(),
+                fieldElement.getGenericType(),
+                mutableAnnotationMetadata,
+                fieldElement.getGenericType().getTypeArguments(),
+                new HashMap<>(),
+                loadTypeMethods
+        );
     }
 
     private void removeAnnotations(AnnotationMetadata annotationMetadata, String... annotationNames) {
