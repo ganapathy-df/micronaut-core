@@ -15,6 +15,7 @@
  */
 package io.micronaut.inject.beans.visitor;
 
+import io.micronaut.inject.ExtractedSeparateClass35993;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.annotation.Introspected;
@@ -411,9 +412,7 @@ final class BeanIntrospectionWriter extends AbstractAnnotationMetadataWriter {
             annotationIndexFields.put(annotationName, newIndexField);
         }
 
-        staticInit.returnValue();
-        staticInit.visitMaxs(DEFAULT_MAX_STACK, 1);
-        staticInit.visitEnd();
+        ExtractedSeparateClass35993.extractedMethod73731(staticInit, DEFAULT_MAX_STACK);
     }
 
     private void pushBeanPropertyReference(ClassWriter classWriter,
@@ -680,9 +679,7 @@ final class BeanIntrospectionWriter extends AbstractAnnotationMetadataWriter {
 
         }.write(findMethod);
         findMethod.push(-1);
-        findMethod.returnValue();
-        findMethod.visitMaxs(DEFAULT_MAX_STACK, 1);
-        findMethod.visitEnd();
+        ExtractedSeparateClass35993.extractedMethod73731(findMethod, DEFAULT_MAX_STACK);
     }
 
     private void buildFindIndexedProperty(ClassWriter classWriter) {
@@ -779,9 +776,7 @@ final class BeanIntrospectionWriter extends AbstractAnnotationMetadataWriter {
         }.write(writer);
 
         writer.push((String) null);
-        writer.returnValue();
-        writer.visitMaxs(DEFAULT_MAX_STACK, 1);
-        writer.visitEnd();
+        ExtractedSeparateClass35993.extractedMethod73731(writer, DEFAULT_MAX_STACK);
     }
 
     private void buildGetIndexedProperties(ClassWriter classWriter) {
@@ -828,9 +823,7 @@ final class BeanIntrospectionWriter extends AbstractAnnotationMetadataWriter {
         }.write(writer);
 
         writer.invokeStatic(Type.getType(Collections.class), COLLECTIONS_EMPTY_LIST);
-        writer.returnValue();
-        writer.visitMaxs(DEFAULT_MAX_STACK, 1);
-        writer.visitEnd();
+        ExtractedSeparateClass35993.extractedMethod73731(writer, DEFAULT_MAX_STACK);
     }
 
     private int getPropertyIndex(String propertyName) {

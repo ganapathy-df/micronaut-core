@@ -15,6 +15,7 @@
  */
 package io.micronaut.inject.writer;
 
+import io.micronaut.inject.ExtractedSeparateClass35993;
 import io.micronaut.context.AbstractExecutableMethodsDefinition;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
@@ -257,9 +258,7 @@ public class ExecutableMethodsDefinitionWriter extends AbstractClassFileWriter i
             );
         }
         staticInit.putStatic(thisType, FIELD_METHODS_REFERENCES, methodsFieldType);
-        staticInit.returnValue();
-        staticInit.visitMaxs(DEFAULT_MAX_STACK, 1);
-        staticInit.visitEnd();
+        ExtractedSeparateClass35993.extractedMethod73731(staticInit, DEFAULT_MAX_STACK);
     }
 
     private void buildConstructor(ClassWriter classWriter, Type methodsFieldType) {
@@ -349,9 +348,7 @@ public class ExecutableMethodsDefinitionWriter extends AbstractClassFileWriter i
             }
         });
         findMethod.push((String) null);
-        findMethod.returnValue();
-        findMethod.visitMaxs(DEFAULT_MAX_STACK, 1);
-        findMethod.visitEnd();
+        ExtractedSeparateClass35993.extractedMethod73731(findMethod, DEFAULT_MAX_STACK);
     }
 
     private void pushNewMethodReference(ClassWriter classWriter,
