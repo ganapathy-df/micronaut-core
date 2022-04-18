@@ -15,6 +15,7 @@
  */
 package io.micronaut.docs.server.response;
 
+import io.micronaut.docs.ExtractedSeparateClass21111;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.HttpResponse;
@@ -37,9 +38,7 @@ public class ProducesControllerSpec {
     @BeforeClass
     public static void setupServer() {
         server = ApplicationContext.run(EmbeddedServer.class, Collections.singletonMap("spec.name", "producesspec"));
-        client = server
-                .getApplicationContext()
-                .createBean(HttpClient.class, server.getURL());
+        client = ExtractedSeparateClass21111.getClient11688(server);
     }
 
     @AfterClass
