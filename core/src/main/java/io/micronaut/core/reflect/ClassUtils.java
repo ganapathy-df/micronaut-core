@@ -352,6 +352,7 @@ public class ClassUtils {
             }
             populateHierarchyInterfaces(aClass, hierarchy);
         }
+        
     }
 
     /**
@@ -364,6 +365,7 @@ public class ClassUtils {
         public Optimizations(Set<String> missingTypes) {
             this.missingTypes = missingTypes;
         }
+        
 
         public Set<String> getMissingTypes() {
             return missingTypes;
