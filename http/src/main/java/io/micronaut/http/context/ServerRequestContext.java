@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,14 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.context;
-
-import io.micronaut.http.HttpRequest;
 
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.function.Supplier;
+
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
+import io.micronaut.http.HttpRequest;
 
 /**
  * The holder for the current {@link HttpRequest} that is bound to instrumented threads.
@@ -31,9 +32,23 @@ import java.util.function.Supplier;
  */
 public final class ServerRequestContext {
 
+    public static final String KEY = "micronaut.http.server.request";
     private static final ThreadLocal<HttpRequest> REQUEST = new ThreadLocal<>();
 
     private ServerRequestContext() {
+    }
+
+    /**
+     * Set {@link HttpRequest}.
+     *
+     * @param request new {@link HttpRequest}
+     */
+    public static void set(@Nullable HttpRequest request) {
+        if (request == null) {
+            REQUEST.remove();
+        } else {
+            REQUEST.set(request);
+        }
     }
 
     /**
@@ -42,18 +57,18 @@ public final class ServerRequestContext {
      * @param request  The request
      * @param runnable The runnable
      */
-    public static void with(HttpRequest request, Runnable runnable) {
+    public static void with(@Nullable HttpRequest request, @NonNull Runnable runnable) {
         HttpRequest existing = REQUEST.get();
         boolean isSet = false;
         try {
             if (request != existing) {
                 isSet = true;
-                REQUEST.set(request);
+                set(request);
             }
             runnable.run();
         } finally {
             if (isSet) {
-                REQUEST.remove();
+                set(existing);
             }
         }
     }
@@ -65,7 +80,7 @@ public final class ServerRequestContext {
      * @param runnable The runnable
      * @return The newly instrumented runnable
      */
-    public static Runnable instrument(HttpRequest request, Runnable runnable) {
+    public static Runnable instrument(@Nullable HttpRequest request, @NonNull Runnable runnable) {
         return () -> with(request, runnable);
     }
 
@@ -77,18 +92,18 @@ public final class ServerRequestContext {
      * @param <T>      The return type of the callable
      * @return The return value of the callable
      */
-    public static <T> T with(HttpRequest request, Supplier<T> callable) {
+    public static <T> T with(@Nullable HttpRequest request, @NonNull Supplier<T> callable) {
         HttpRequest existing = REQUEST.get();
         boolean isSet = false;
         try {
             if (request != existing) {
                 isSet = true;
-                REQUEST.set(request);
+                set(request);
             }
             return callable.get();
         } finally {
             if (isSet) {
-                REQUEST.remove();
+                set(existing);
             }
         }
     }
@@ -102,18 +117,18 @@ public final class ServerRequestContext {
      * @return The return value of the callable
      * @throws Exception If the callable throws an exception
      */
-    public static <T> T with(HttpRequest request, Callable<T> callable) throws Exception {
+    public static <T> T with(@Nullable HttpRequest request, @NonNull Callable<T> callable) throws Exception {
         HttpRequest existing = REQUEST.get();
         boolean isSet = false;
         try {
             if (request != existing) {
                 isSet = true;
-                REQUEST.set(request);
+                set(request);
             }
             return callable.call();
         } finally {
             if (isSet) {
-                REQUEST.remove();
+                set(existing);
             }
         }
     }

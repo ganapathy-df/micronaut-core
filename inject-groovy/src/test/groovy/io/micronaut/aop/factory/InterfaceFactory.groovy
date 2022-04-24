@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,11 @@
 package io.micronaut.aop.factory
 
 import io.micronaut.aop.interceptors.Mutating
-import io.micronaut.context.annotation.Bean
 import io.micronaut.context.annotation.Factory
 import io.micronaut.context.annotation.Primary
+import io.micronaut.context.annotation.Prototype
 
-import javax.inject.Named
+import jakarta.inject.Named
 
 /**
  * @author Graeme Rocher
@@ -29,14 +29,14 @@ import javax.inject.Named
 @Factory
 class InterfaceFactory {
 
-    @Bean
+    @Prototype
     @Mutating("name")
     @Primary
     InterfaceClass interfaceClass() {
         return new InterfaceImpl()
     }
 
-    @Bean
+    @Prototype
     @Mutating("name")
     @Named("another")
     InterfaceClass anotherImpl() {

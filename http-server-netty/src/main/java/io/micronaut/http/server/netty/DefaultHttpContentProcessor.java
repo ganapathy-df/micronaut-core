@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,19 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.server.netty;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.http.netty.stream.StreamedHttpMessage;
 import io.micronaut.core.async.processor.SingleThreadedBufferingProcessor;
 import io.micronaut.core.async.subscriber.SingleThreadedBufferingSubscriber;
 import io.micronaut.http.exceptions.ContentLengthExceededException;
+import io.micronaut.http.netty.stream.StreamedHttpMessage;
 import io.micronaut.http.server.HttpServerConfiguration;
 import io.netty.buffer.ByteBufHolder;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.http.HttpRequest;
 import io.netty.handler.codec.http.multipart.HttpData;
+import io.netty.util.ReferenceCountUtil;
 import org.reactivestreams.Subscriber;
 
 import java.util.concurrent.atomic.AtomicLong;
@@ -46,7 +46,6 @@ public class DefaultHttpContentProcessor extends SingleThreadedBufferingProcesso
     protected final long requestMaxSize;
     protected final StreamedHttpMessage streamedHttpMessage;
     protected final AtomicLong receivedLength = new AtomicLong();
-    private final long partMaxSize;
 
     /**
      * @param nettyHttpRequest The {@link NettyHttpRequest}
@@ -63,37 +62,27 @@ public class DefaultHttpContentProcessor extends SingleThreadedBufferingProcesso
         this.requestMaxSize = configuration.getMaxRequestSize();
         this.ctx = nettyHttpRequest.getChannelHandlerContext();
         this.advertisedLength = nettyHttpRequest.getContentLength();
-        this.partMaxSize = configuration.getMultipart().getMaxFileSize();
     }
 
     @Override
     public final void subscribe(Subscriber<? super ByteBufHolder> downstreamSubscriber) {
+        super.subscribe(downstreamSubscriber);
+        //ensures the subscriber is present before subscribing to the message
         StreamedHttpMessage message = (StreamedHttpMessage) nettyHttpRequest.getNativeRequest();
         message.subscribe(this);
-        super.subscribe(downstreamSubscriber);
     }
 
     @Override
     protected void onUpstreamMessage(ByteBufHolder message) {
         long receivedLength = this.receivedLength.addAndGet(resolveLength(message));
 
-        if ((advertisedLength != -1 && receivedLength > advertisedLength) || (receivedLength > requestMaxSize)) {
-            fireExceedsLength(advertisedLength == -1 ? receivedLength : advertisedLength, requestMaxSize);
+        if (advertisedLength > requestMaxSize) {
+            fireExceedsLength(advertisedLength, requestMaxSize, message);
+        } else if (receivedLength > requestMaxSize) {
+            fireExceedsLength(receivedLength, requestMaxSize, message);
         } else {
-            if (verifyPartDefinedSize(message)) {
-                publishVerifiedContent(message);
-            }
+            publishVerifiedContent(message);
         }
-    }
-
-    private boolean verifyPartDefinedSize(ByteBufHolder message) {
-        long partLength = message instanceof HttpData ? ((HttpData) message).definedLength() : -1;
-        boolean validPart = partLength > partMaxSize;
-        if (validPart) {
-            fireExceedsLength(partLength, partMaxSize);
-            return false;
-        }
-        return true;
     }
 
     private long resolveLength(ByteBufHolder message) {
@@ -104,10 +93,14 @@ public class DefaultHttpContentProcessor extends SingleThreadedBufferingProcesso
         }
     }
 
-    private void fireExceedsLength(long receivedLength, long expected) {
+    private void fireExceedsLength(long receivedLength, long expected, ByteBufHolder message) {
         upstreamState = SingleThreadedBufferingSubscriber.BackPressureState.DONE;
         upstreamSubscription.cancel();
-        currentDownstreamSubscriber().ifPresent(subscriber -> subscriber.onError(new ContentLengthExceededException(expected, receivedLength)));
+        upstreamBuffer.clear();
+        currentDownstreamSubscriber().ifPresent(subscriber ->
+                subscriber.onError(new ContentLengthExceededException(expected, receivedLength))
+        );
+        ReferenceCountUtil.safeRelease(message);
     }
 
     private void publishVerifiedContent(ByteBufHolder message) {

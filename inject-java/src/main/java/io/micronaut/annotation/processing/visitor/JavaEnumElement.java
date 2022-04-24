@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,16 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.annotation.processing.visitor;
 
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.inject.ast.ClassElement;
 import io.micronaut.inject.ast.EnumElement;
 
 import javax.lang.model.element.ElementKind;
 import javax.lang.model.element.TypeElement;
-import javax.lang.model.type.TypeMirror;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -39,10 +38,19 @@ class JavaEnumElement extends JavaClassElement implements EnumElement {
      * @param classElement       The {@link TypeElement}
      * @param annotationMetadata The annotation metadata
      * @param visitorContext The visitor context
-     * @param typeArguments The type arguments
      */
-    JavaEnumElement(TypeElement classElement, AnnotationMetadata annotationMetadata, JavaVisitorContext visitorContext, List<? extends TypeMirror> typeArguments) {
-        super(classElement, annotationMetadata, visitorContext, typeArguments);
+    JavaEnumElement(TypeElement classElement, AnnotationMetadata annotationMetadata, JavaVisitorContext visitorContext) {
+        this(classElement, annotationMetadata, visitorContext, 0);
+    }
+
+    /**
+     * @param classElement       The {@link TypeElement}
+     * @param annotationMetadata The annotation metadata
+     * @param visitorContext     The visitor context
+     * @param arrayDimensions    The number of array dimensions
+     */
+    JavaEnumElement(TypeElement classElement, AnnotationMetadata annotationMetadata, JavaVisitorContext visitorContext, int arrayDimensions) {
+        super(classElement, annotationMetadata, visitorContext, Collections.emptyList(), Collections.emptyMap(), arrayDimensions, false);
     }
 
     @Override
@@ -54,5 +62,10 @@ class JavaEnumElement extends JavaClassElement implements EnumElement {
                                     .map(e -> e.getSimpleName().toString())
                                     .collect(Collectors.toList());
         return Collections.unmodifiableList(results);
+    }
+
+    @Override
+    public ClassElement withArrayDimensions(int arrayDimensions) {
+        return new JavaEnumElement(classElement, getAnnotationMetadata(), visitorContext, arrayDimensions);
     }
 }

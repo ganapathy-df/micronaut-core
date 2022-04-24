@@ -1,35 +1,59 @@
-/*
- * Copyright 2017-2018 original authors
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
 package io.micronaut.inject.requires
 
+import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 import io.micronaut.context.ApplicationContext
-import io.micronaut.context.BeanContext
 import io.micronaut.context.DefaultBeanContext
 import io.micronaut.context.annotation.Requires
+import io.micronaut.context.condition.OperatingSystem
 import io.micronaut.context.env.PropertySource
+import io.micronaut.context.exceptions.NoSuchBeanException
 import io.micronaut.core.annotation.AnnotationMetadata
-import io.micronaut.inject.AbstractTypeElementSpec
 import io.micronaut.inject.BeanDefinition
 import io.micronaut.inject.BeanDefinitionReference
+import spock.util.environment.RestoreSystemProperties
 
-/**
- * @author Graeme Rocher
- * @since 1.0
- */
 class RequiresSpec extends AbstractTypeElementSpec{
+
+    void "test requires java sdk - success"() {
+        given:
+        ApplicationContext context = buildContext( '''
+package test;
+
+import io.micronaut.context.annotation.*;
+
+@Requires(sdk=Requires.Sdk.JAVA, value="8")
+@jakarta.inject.Singleton
+class MyBean {
+}
+''')
+        expect:"the bean exists"
+        getBean(context, 'test.MyBean')
+
+        cleanup:
+        context.close()
+    }
+
+    void "test requires java sdk - failure"() {
+        given:
+        ApplicationContext context = buildContext( '''
+package test;
+
+import io.micronaut.context.annotation.*;
+
+@Requires(sdk=Requires.Sdk.JAVA, version="800")
+@jakarta.inject.Singleton
+class MyBean {
+}
+''')
+        when:"the bean doesn't exist"
+        getBean(context, 'test.MyBean')
+
+        then:
+        thrown(NoSuchBeanException)
+
+        cleanup:
+        context.close()
+    }
 
     void "test requires property not equals"() {
         when:
@@ -39,32 +63,37 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(property="foo", notEquals="bar")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
-        ApplicationContext applicationContext = ApplicationContext.build().build()
+        ApplicationContext applicationContext = ApplicationContext.builder().build()
         applicationContext.environment.addPropertySource(PropertySource.of("foo":"test"))
-        applicationContext.environment.start()
+        applicationContext.start()
 
         then:
         beanDefinition.isEnabled(applicationContext)
 
         when:
-        applicationContext = ApplicationContext.build().build()
+        applicationContext.close()
+        applicationContext = ApplicationContext.builder().build()
         applicationContext.environment.addPropertySource(PropertySource.of("foo":"bar"))
-        applicationContext.environment.start()
+        applicationContext.start()
 
         then:
         !beanDefinition.isEnabled(applicationContext)
 
         when:
-        applicationContext = ApplicationContext.build().build()
-        applicationContext.environment.start()
+        applicationContext.close()
+        applicationContext = ApplicationContext.builder().build()
+        applicationContext.start()
 
         then:
         beanDefinition.isEnabled(applicationContext)
+
+        cleanup:
+        applicationContext.close()
     }
 
     void "test requires classes with classes present"() {
@@ -75,13 +104,13 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(classes=String.class)
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         then:
-        beanDefinition.isEnabled(Mock(BeanContext))
+        beanDefinition.isEnabled(new DefaultBeanContext())
     }
 
     void "test requires classes with classes not present"() {
@@ -92,7 +121,7 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(classes=String.class)
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
@@ -110,7 +139,7 @@ import io.micronaut.context.annotation.*;
 import io.micronaut.inject.requires.*;
 
 @MetaRequires
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
@@ -128,20 +157,23 @@ import io.micronaut.context.annotation.*;
 import io.micronaut.inject.requires.*;
 
 @MetaRequires
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = ApplicationContext
-                .build('foo.bar':"test")
+                .builder('foo.bar':"test")
                 .build()
-        context.environment.start()
+        context.start()
 
         context.registerSingleton(String.class, "foo")
 
         then:
         beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires missing beans with no bean present"() {
@@ -152,7 +184,7 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(missingBeans=String.class)
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
@@ -169,16 +201,20 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(missingBeans=String.class)
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = new DefaultBeanContext()
         context.registerSingleton(String.class, "foo")
+        context.start()
 
         then:
         !beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires beans with no bean present"() {
@@ -189,7 +225,7 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(beans=String.class)
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
@@ -206,16 +242,20 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(beans=String.class)
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = new DefaultBeanContext()
         context.registerSingleton(String.class, "foo")
+        context.start()
 
         then:
         beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
 
@@ -228,16 +268,20 @@ import io.micronaut.inject.requires.*;
 import io.micronaut.context.annotation.*;
 
 @Requires(beans=Outer.Inner.class)
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = new DefaultBeanContext()
         context.registerSingleton(new Outer.Inner())
+        context.start()
 
         then:
         beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires environment with environment present"() {
@@ -248,15 +292,19 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(env="foo")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
-        def context = ApplicationContext.build("foo").build()
+        def context = ApplicationContext.builder("foo").build()
+        context.start()
 
         then:
         beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires environment with environment not present"() {
@@ -267,15 +315,19 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(env="foo")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
-        def context = ApplicationContext.build().build()
+        def context = ApplicationContext.builder().build()
+        context.start()
 
         then:
         !beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires not environment with environment present"() {
@@ -286,15 +338,19 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(notEnv="foo")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
-        def context = ApplicationContext.build("foo").build()
+        def context = ApplicationContext.builder("foo").build()
+        context.start()
 
         then:
         !beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires not multiple environment with environment present"() {
@@ -305,15 +361,19 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(notEnv={"foo", "bar"})
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
-        def context = ApplicationContext.build("foo").build()
+        def context = ApplicationContext.builder("foo").build()
+        context.start()
 
         then:
         !beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires not environment with environment not present"() {
@@ -324,15 +384,19 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(notEnv="foo")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
-        def context = ApplicationContext.build().build()
+        def context = ApplicationContext.builder().build()
+        context.start()
 
         then:
         beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires not multiple environments with environment not present"() {
@@ -343,15 +407,19 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(notEnv={"foo", "bar"})
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
-        def context = ApplicationContext.build().build()
+        def context = ApplicationContext.builder().build()
+        context.start()
 
         then:
         beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires property with property present"() {
@@ -362,22 +430,25 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(property="foo.bar")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = ApplicationContext
-                .build('foo.bar':true)
+                .builder('foo.bar':true)
                 .build()
 
-        context.environment.start()
-
+        context.start()
 
         then:
         beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
+    @RestoreSystemProperties
     void "test requires property with property not present"() {
         setup:
         System.setProperty("foo.bar","")
@@ -388,20 +459,22 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(property="mybean.foo.bar")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = ApplicationContext
-                .build()
+                .builder()
                 .build()
 
-        context.environment.start()
-
+        context.start()
 
         then:
         !beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires property and value with property present"() {
@@ -412,19 +485,22 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(property="foo.bar", value="test")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = ApplicationContext
-                .build('foo.bar':"test")
+                .builder('foo.bar':"test")
                 .build()
 
-        context.environment.start()
+        context.start()
 
         then:
         beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires property and value with property not present"() {
@@ -435,20 +511,23 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(property="foo.bar", value="test")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = ApplicationContext
-                .build()
+                .builder()
                 .build()
 
-        context.environment.start()
+        context.start()
 
 
         then:
         !beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires property and value with property not equal"() {
@@ -459,20 +538,22 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(property="foo.bar", value="test")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = ApplicationContext
-                .build('foo.bar':"blah")
+                .builder('foo.bar':"blah")
                 .build()
 
-        context.environment.start()
-
+        context.start()
 
         then:
         !beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     //  *********************************************************************************
@@ -485,19 +566,22 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(property="foo.bar", pattern="\\\\d+")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = ApplicationContext
-                .build('foo.bar':"10")
+                .builder('foo.bar':"10")
                 .build()
 
-        context.environment.start()
+        context.start()
 
         then:
         beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires property and pattern with property not present"() {
@@ -508,20 +592,22 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(property="foo.bar", pattern="\\\\d+")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = ApplicationContext
-                .build()
+                .builder()
                 .build()
 
-        context.environment.start()
-
+        context.start()
 
         then:
         !beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
     }
 
     void "test requires property and pattern with property not matching"() {
@@ -532,19 +618,99 @@ package test;
 import io.micronaut.context.annotation.*;
 
 @Requires(property="foo.bar", pattern="\\\\d+")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean {
 }
 ''')
 
         def context = ApplicationContext
-                .build('foo.bar':"blah")
+                .builder('foo.bar':"blah")
                 .build()
 
-        context.environment.start()
-
+        context.start()
 
         then:
         !beanDefinition.isEnabled(context)
+
+        cleanup:
+        context.close()
+    }
+
+    void "test requires OS"() {
+        when:
+        BeanDefinition beanDefinition = buildBeanDefinition('test.MyBean', '''
+package test;
+
+import io.micronaut.context.annotation.*;
+
+@Requires(os = {Requires.Family.WINDOWS, Requires.Family.MAC_OS})
+@jakarta.inject.Singleton
+class MyBean {
+}
+''')
+        OperatingSystem.instance = new OperatingSystem(Requires.Family.LINUX)
+        def context = ApplicationContext
+                .builder()
+                .build()
+
+        context.start()
+
+        then:
+        !beanDefinition.isEnabled(context)
+
+        when:
+        context.close()
+        OperatingSystem.instance = new OperatingSystem(Requires.Family.WINDOWS)
+        context = ApplicationContext
+                .builder()
+                .build()
+
+        context.start()
+
+        then:
+        beanDefinition.isEnabled(context)
+
+        cleanup:
+        OperatingSystem.instance = null
+        context.close()
+    }
+
+    void "test not OS"() {
+        when:
+        BeanDefinition beanDefinition = buildBeanDefinition('test.MyBean', '''
+package test;
+
+import io.micronaut.context.annotation.*;
+
+@Requires(notOs = {Requires.Family.WINDOWS, Requires.Family.MAC_OS})
+@jakarta.inject.Singleton
+class MyBean {
+}
+''')
+        OperatingSystem.instance = new OperatingSystem(Requires.Family.WINDOWS)
+        def context = ApplicationContext
+                .builder()
+                .build()
+
+        context.start()
+
+        then:
+        !beanDefinition.isEnabled(context)
+
+        when:
+        context.close()
+        OperatingSystem.instance = new OperatingSystem(Requires.Family.LINUX)
+        context = ApplicationContext
+                .builder()
+                .build()
+
+        context.start()
+
+        then:
+        beanDefinition.isEnabled(context)
+
+        cleanup:
+        OperatingSystem.instance = null
+        context.close()
     }
 }

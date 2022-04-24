@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,25 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.io.scan;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import io.micronaut.core.io.ResourceLoader;
 import io.micronaut.core.util.StringUtils;
+import io.micronaut.core.util.clhm.ConcurrentLinkedHashMap;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.*;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.Optional;
+import java.util.*;
 import java.util.stream.Stream;
 
 /**
@@ -47,7 +44,11 @@ public class DefaultClassPathResourceLoader implements ClassPathResourceLoader {
 
     private final ClassLoader classLoader;
     private final String basePath;
-    private final Cache<String, Boolean> isDirectoryCache = Caffeine.newBuilder().maximumSize(50).build();
+    private final URL baseURL;
+    private final Map<String, Boolean> isDirectoryCache = new ConcurrentLinkedHashMap.Builder<String, Boolean>()
+            .maximumWeightedCapacity(50).build();
+    private final boolean missingPath;
+    private final boolean checkBase;
 
     /**
      * Default constructor.
@@ -65,8 +66,22 @@ public class DefaultClassPathResourceLoader implements ClassPathResourceLoader {
      * @param basePath    The path to look for resources under
      */
     public DefaultClassPathResourceLoader(ClassLoader classLoader, String basePath) {
+        this(classLoader, basePath, false);
+    }
+
+    /**
+     * Use when resources should have a standard base path.
+     *
+     * @param classLoader The class loader for loading resources
+     * @param basePath    The path to look for resources under
+     * @param checkBase   If set to {@code true} an extended check for the base path is performed otherwise paths with relative URLs like {@code ../} are prohibited.
+     */
+    public DefaultClassPathResourceLoader(ClassLoader classLoader, String basePath, boolean checkBase) {
         this.classLoader = classLoader;
         this.basePath = normalize(basePath);
+        this.baseURL = checkBase && basePath != null ? classLoader.getResource(normalize(basePath)) : null;
+        this.missingPath = checkBase && basePath != null && baseURL == null;
+        this.checkBase = checkBase;
     }
 
     /**
@@ -75,11 +90,90 @@ public class DefaultClassPathResourceLoader implements ClassPathResourceLoader {
      * @param path The path
      * @return An optional resource
      */
+    @Override
     public Optional<InputStream> getResourceAsStream(String path) {
-        if (!isDirectory(path)) {
-            return Optional.ofNullable(classLoader.getResourceAsStream(prefixPath(path)));
-        } else {
+        if (missingPath) {
             return Optional.empty();
+        } else if (isProhibitedRelativePath(path)) {
+            return Optional.empty();
+        }
+
+        URL url = classLoader.getResource(prefixPath(path));
+        if (url != null) {
+            if (startsWithBase(url)) {
+                try {
+                    URI uri = url.toURI();
+                    if (uri.getScheme().equals("jar")) {
+                        synchronized (DefaultClassPathResourceLoader.class) {
+                            FileSystem fileSystem = null;
+                            try {
+                                try {
+                                    fileSystem = FileSystems.getFileSystem(uri);
+                                } catch (FileSystemNotFoundException e) {
+                                    //no-op
+                                }
+                                if (fileSystem == null || !fileSystem.isOpen()) {
+                                    try {
+                                        fileSystem = FileSystems.newFileSystem(uri, Collections.emptyMap(), classLoader);
+                                    } catch (FileSystemAlreadyExistsException e) {
+                                        fileSystem = FileSystems.getFileSystem(uri);
+                                    }
+                                }
+                                Path pathObject = fileSystem.getPath(path);
+                                if (Files.isDirectory(pathObject)) {
+                                    return Optional.empty();
+                                }
+                                return Optional.of(new ByteArrayInputStream(Files.readAllBytes(pathObject)));
+                            } finally {
+                                if (fileSystem != null && fileSystem.isOpen()) {
+                                    try {
+                                        fileSystem.close();
+                                    } catch (IOException e) {
+                                        if (LOG.isDebugEnabled()) {
+                                            LOG.debug("Error shutting down JAR file system [" + fileSystem + "]: " + e.getMessage(), e);
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if (uri.getScheme().equals("file")) {
+                        Path pathObject = Paths.get(uri);
+                        if (Files.isDirectory(pathObject)) {
+                            return Optional.empty();
+                        }
+                        return Optional.of(Files.newInputStream(pathObject));
+                    }
+                } catch (URISyntaxException | IOException | ProviderNotFoundException e) {
+                    if (LOG.isDebugEnabled()) {
+                        LOG.debug("Error establishing whether path is a directory: " + e.getMessage(), e);
+                    }
+                }
+            }
+        }
+        // fallback to less sophisticated approach
+        if (path.indexOf('.') == -1) {
+            return Optional.empty();
+        }
+        final URL u = getResource(path).orElse(null);
+        if (u != null) {
+            try {
+                return Optional.of(u.openStream());
+            } catch (IOException e) {
+                // fallback to empty
+            }
+        }
+        return Optional.empty();
+    }
+
+    private boolean startsWithBase(URL url) {
+        if (checkBase) {
+            if (baseURL == null) {
+                return true;
+            } else {
+                return url.toExternalForm().startsWith(baseURL.toExternalForm());
+            }
+        } else {
+            return true;
         }
     }
 
@@ -89,14 +183,27 @@ public class DefaultClassPathResourceLoader implements ClassPathResourceLoader {
      * @param path The path
      * @return An optional resource
      */
+    @Override
     public Optional<URL> getResource(String path) {
+        if (missingPath) {
+            return Optional.empty();
+        } else if (isProhibitedRelativePath(path)) {
+            return Optional.empty();
+        }
+
         boolean isDirectory = isDirectory(path);
 
         if (!isDirectory) {
             URL url = classLoader.getResource(prefixPath(path));
-            return Optional.ofNullable(url);
+            if (url != null && startsWithBase(url)) {
+                return Optional.of(url);
+            }
         }
         return Optional.empty();
+    }
+
+    private boolean isProhibitedRelativePath(String path) {
+        return !checkBase && path.replace('\\', '/').contains("../");
     }
 
     /**
@@ -105,7 +212,14 @@ public class DefaultClassPathResourceLoader implements ClassPathResourceLoader {
      * @param path The path
      * @return A resource stream
      */
+    @Override
     public Stream<URL> getResources(String path) {
+        if (missingPath) {
+            return Stream.empty();
+        } else if (isProhibitedRelativePath(path)) {
+            return Stream.empty();
+        }
+
         Enumeration<URL> all;
         try {
             all = classLoader.getResources(prefixPath(path));
@@ -115,7 +229,9 @@ public class DefaultClassPathResourceLoader implements ClassPathResourceLoader {
         Stream.Builder<URL> builder = Stream.builder();
         while (all.hasMoreElements()) {
             URL url = all.nextElement();
-            builder.accept(url);
+            if (startsWithBase(url)) {
+                builder.accept(url);
+            }
         }
         return builder.build();
     }
@@ -123,14 +239,16 @@ public class DefaultClassPathResourceLoader implements ClassPathResourceLoader {
     /**
      * @return The class loader used to retrieve resources
      */
+    @Override
     public ClassLoader getClassLoader() {
         return classLoader;
     }
 
     /**
      * @param basePath The path to load resources
-     * @return The resouce loader
+     * @return The resource loader
      */
+    @Override
     public ResourceLoader forBase(String basePath) {
         return new DefaultClassPathResourceLoader(classLoader, basePath);
     }
@@ -153,15 +271,14 @@ public class DefaultClassPathResourceLoader implements ClassPathResourceLoader {
 
     @SuppressWarnings("ConstantConditions")
     private boolean isDirectory(String path) {
-        return isDirectoryCache.get(path, s -> {
+        return isDirectoryCache.computeIfAbsent(path, s -> {
             URL url = classLoader.getResource(prefixPath(path));
             if (url != null) {
                 try {
                     URI uri = url.toURI();
                     Path pathObject;
-                    synchronized(DefaultClassPathResourceLoader.class) {
-
-                        if (uri.getScheme().equals("jar")) {
+                    if (uri.getScheme().equals("jar")) {
+                        synchronized (DefaultClassPathResourceLoader.class) {
                             FileSystem fileSystem = null;
                             try {
                                 try {
@@ -186,13 +303,12 @@ public class DefaultClassPathResourceLoader implements ClassPathResourceLoader {
                                     }
                                 }
                             }
-                        } else if (uri.getScheme().equals("file")) {
-                            pathObject = Paths.get(uri);
-                            return pathObject == null || Files.isDirectory(pathObject);
                         }
-
+                    } else if (uri.getScheme().equals("file")) {
+                        pathObject = Paths.get(uri);
+                        return pathObject == null || Files.isDirectory(pathObject);
                     }
-                } catch (URISyntaxException | IOException e) {
+                } catch (URISyntaxException | IOException | ProviderNotFoundException e) {
                     if (LOG.isDebugEnabled()) {
                         LOG.debug("Error establishing whether path is a directory: " + e.getMessage(), e);
                     }
@@ -210,12 +326,10 @@ public class DefaultClassPathResourceLoader implements ClassPathResourceLoader {
         if (basePath != null) {
             if (path.startsWith("/")) {
                 return basePath + path.substring(1);
-            } else {
-                return basePath + path;
             }
-        } else {
-            return path;
+            return basePath + path;
         }
+        return path;
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,11 @@
 package io.micronaut.inject.env
 
 import io.micronaut.context.ApplicationContext
+import io.micronaut.context.annotation.PropertySource
 import io.micronaut.context.env.Environment
+import io.micronaut.context.event.ApplicationEventPublisher
+import io.micronaut.core.annotation.AnnotationValue
+import io.micronaut.inject.BeanDefinition
 import spock.lang.Specification
 
 class EnvironmentInjectSpec extends Specification {
@@ -34,5 +38,18 @@ class EnvironmentInjectSpec extends Specification {
         a.environment.activeNames.contains(Environment.TEST)
         a.defaultEnvironment != null
         a.defaultEnvironment.activeNames.contains("foo")
+        a.resourceLoader != null
+    }
+
+    void "test environment resolution in sub annotations"() {
+        ApplicationContext ctx = ApplicationContext.run(["from.config": "hello"])
+
+        when:
+        BeanDefinition beanDefinition = ctx.getBeanDefinition(B.class)
+        def props = beanDefinition.getAnnotation(PropertySource).getProperties("value")
+
+        then:
+        props == [x:'hello']
+
     }
 }

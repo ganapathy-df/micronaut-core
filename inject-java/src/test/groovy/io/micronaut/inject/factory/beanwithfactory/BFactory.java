@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,11 +15,11 @@
  */
 package io.micronaut.inject.factory.beanwithfactory;
 
-import io.micronaut.context.annotation.Bean;
 import io.micronaut.context.annotation.Factory;
+import io.micronaut.context.annotation.Prototype;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
 
 @Factory
 public class BFactory  {
@@ -60,7 +60,7 @@ public class BFactory  {
         name = name.toUpperCase();
     }
 
-    @Bean
+    @Prototype
     public B get() {
         getCalled = true;
         B b = new B();

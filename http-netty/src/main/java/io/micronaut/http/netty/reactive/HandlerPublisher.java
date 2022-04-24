@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,10 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.netty.reactive;
-
-import static io.micronaut.http.netty.reactive.HandlerPublisher.State.*;
 
 import io.micronaut.core.annotation.Internal;
 import io.netty.channel.ChannelDuplexHandler;
@@ -25,7 +22,6 @@ import io.netty.handler.codec.http.HttpContent;
 import io.netty.util.ReferenceCountUtil;
 import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.internal.TypeParameterMatcher;
-import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 import org.slf4j.Logger;
@@ -35,6 +31,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedList;
 import java.util.Queue;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static io.micronaut.http.netty.reactive.HandlerPublisher.State.*;
 
 /**
  * Publisher for a Netty Handler.
@@ -64,7 +62,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @since 1.0
  */
 @Internal
-public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publisher<T> {
+public class HandlerPublisher<T> extends ChannelDuplexHandler implements HotObservable<T> {
     private static final Logger LOG = LoggerFactory.getLogger(HandlerPublisher.class);
     /**
      * Used for buffering a completion signal.
@@ -92,7 +90,7 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
 
     private volatile Subscriber<? super T> subscriber;
     private ChannelHandlerContext ctx;
-    private long outstandingDemand = 0;
+    private volatile long outstandingDemand = 0;
     private Throwable noSubscriberError;
 
     /**
@@ -120,10 +118,12 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
             subscriber.onSubscribe(new Subscription() {
                 @Override
                 public void request(long n) {
+                    // no-op subscription
                 }
 
                 @Override
                 public void cancel() {
+                    // no-op subscription
                 }
             });
             subscriber.onError(new IllegalStateException("This publisher only supports one subscriber"));
@@ -238,6 +238,10 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
                 subscriber.onSubscribe(new ChannelSubscription());
                 subscriber.onError(noSubscriberError);
                 break;
+            case DONE:
+                subscriber.onSubscribe(new ChannelSubscription());
+                subscriber.onComplete();
+                break;
             default:
                 // no-op
         }
@@ -261,13 +265,13 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
     private void provideChannelContext(ChannelHandlerContext ctx) {
         switch (state) {
             case NO_SUBSCRIBER_OR_CONTEXT:
-                verifyRegisteredWithRightExecutor(ctx);
+                verifyRegisteredWithRightExecutor();
                 this.ctx = ctx;
                 // It's set, we don't have a subscriber
                 state = NO_SUBSCRIBER;
                 break;
             case NO_CONTEXT:
-                verifyRegisteredWithRightExecutor(ctx);
+                verifyRegisteredWithRightExecutor();
                 this.ctx = ctx;
                 state = IDLE;
                 subscriber.onSubscribe(new ChannelSubscription());
@@ -277,7 +281,7 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
         }
     }
 
-    private void verifyRegisteredWithRightExecutor(ChannelHandlerContext ctx) {
+    private void verifyRegisteredWithRightExecutor() {
         if (!executor.inEventLoop()) {
             throw new IllegalArgumentException("Channel handler MUST be registered with the same EventExecutor that it is created with.");
         }
@@ -292,88 +296,6 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
         ctx.fireChannelActive();
     }
 
-    private void receivedDemand(long demand) {
-        switch (state) {
-            case BUFFERING:
-            case DRAINING:
-                if (LOG.isTraceEnabled()) {
-                    LOG.trace("HandlerPublisher (state: {}) received demand: {}", state, demand);
-                }
-
-                if (addDemand(demand)) {
-                    flushBuffer();
-                }
-                break;
-
-            case DEMANDING:
-                if (LOG.isTraceEnabled()) {
-                    LOG.trace("HandlerPublisher (state: {}) received demand: {}", state, demand);
-                }
-
-                if (addDemand(demand)) {
-                    flushBuffer();
-                }
-                break;
-
-            case IDLE:
-                if (LOG.isTraceEnabled()) {
-                    LOG.trace("HandlerPublisher (state: {}) received demand: {}", state, demand);
-                }
-
-                if (addDemand(demand)) {
-                    // Important to change state to demanding before doing a read, in case we get a synchronous
-                    // read back.
-                    state = DEMANDING;
-                    requestDemand();
-                }
-                break;
-            default:
-                // no-op
-        }
-    }
-
-    private boolean addDemand(long demand) {
-
-        if (demand <= 0) {
-            illegalDemand();
-            return false;
-        } else {
-            if (outstandingDemand < Long.MAX_VALUE) {
-                outstandingDemand += demand;
-                if (outstandingDemand < 0) {
-                    outstandingDemand = Long.MAX_VALUE;
-                }
-            }
-            return true;
-        }
-    }
-
-    private void illegalDemand() {
-        cleanup();
-        subscriber.onError(new IllegalArgumentException("Request for 0 or negative elements in violation of Section 3.9 of the Reactive Streams specification"));
-        ctx.close();
-        state = DONE;
-    }
-
-    private void flushBuffer() {
-        while (!buffer.isEmpty() && (outstandingDemand > 0 || outstandingDemand == Long.MAX_VALUE)) {
-            if (LOG.isTraceEnabled()) {
-                LOG.trace("HandlerPublisher (state: {}) release message from buffer to satisfy demand: ", state, outstandingDemand);
-            }
-            publishMessage(buffer.remove());
-        }
-        if (buffer.isEmpty()) {
-            if (outstandingDemand > 0) {
-                if (state == BUFFERING) {
-                    state = DEMANDING;
-                } // otherwise we're draining
-                requestDemand();
-            } else if (state == BUFFERING) {
-                state = IDLE;
-            }
-        }
-    }
-
     private void receivedCancel() {
         if (LOG.isTraceEnabled()) {
             LOG.trace("HandlerPublisher (state: {}) received cancellation request", state);
@@ -384,6 +306,7 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
             case DEMANDING:
             case IDLE:
                 cancelled();
+                // fall through
             case DRAINING:
                 state = DONE;
                 break;
@@ -397,40 +320,7 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object message) {
         if (acceptInboundMessage(message)) {
-            switch (state) {
-                case IDLE:
-                    if (LOG.isTraceEnabled()) {
-                        Object msg = messageForTrace(message);
-                        LOG.trace("HandlerPublisher (state: IDLE) buffering message: {}", msg);
-                    }
-                    buffer.add(message);
-                    state = BUFFERING;
-                    break;
-                case NO_SUBSCRIBER:
-                case BUFFERING:
-                    if (LOG.isTraceEnabled()) {
-                        Object msg = messageForTrace(message);
-                        LOG.trace("HandlerPublisher (state: BUFFERING) buffering message: {}", msg);
-                    }
-                    buffer.add(message);
-                    break;
-                case DEMANDING:
-                    publishMessage(message);
-                    break;
-                case DRAINING:
-                case DONE:
-                    if (LOG.isTraceEnabled()) {
-                        Object msg = messageForTrace(message);
-                        LOG.trace("HandlerPublisher (state: DONE) releasing message: {}", msg);
-                    }
-                    ReferenceCountUtil.release(message);
-                    break;
-                case NO_CONTEXT:
-                case NO_SUBSCRIBER_OR_CONTEXT:
-                    throw new IllegalStateException("Message received before added to the channel context");
-                default:
-                    // no-op
-            }
+            publishMessageLater(message);
         } else {
             ctx.fireChannelRead(message);
         }
@@ -443,6 +333,46 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
             msg = content.content().toString(StandardCharsets.UTF_8);
         }
         return msg;
+    }
+
+    private void publishMessageLater(Object message) {
+        ReferenceCountUtil.touch(message);
+        switch (state) {
+            case IDLE:
+                if (LOG.isTraceEnabled()) {
+                    Object msg = messageForTrace(message);
+                    LOG.trace("HandlerPublisher (state: IDLE) buffering message: {}", msg);
+                }
+                buffer.add(message);
+                state = BUFFERING;
+                break;
+            case NO_SUBSCRIBER:
+            case BUFFERING:
+                if (LOG.isTraceEnabled()) {
+                    Object msg = messageForTrace(message);
+                    LOG.trace("HandlerPublisher (state: BUFFERING) buffering message: {}", msg);
+                }
+                buffer.add(message);
+                break;
+            case DEMANDING:
+                state = BUFFERING;
+                buffer.add(message);
+                flushBuffer();
+                break;
+            case DRAINING:
+            case DONE:
+                if (LOG.isTraceEnabled()) {
+                    Object msg = messageForTrace(message);
+                    LOG.trace("HandlerPublisher (state: DONE) releasing message: {}", msg);
+                }
+                ReferenceCountUtil.release(message);
+                break;
+            case NO_CONTEXT:
+            case NO_SUBSCRIBER_OR_CONTEXT:
+                throw new IllegalStateException("Message received before added to the channel context");
+            default:
+                // no-op
+        }
     }
 
     private void publishMessage(Object message) {
@@ -459,6 +389,7 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
                 LOG.trace("HandlerPublisher (state: {}) emitting next message: {}", state, messageForTrace(next));
             }
 
+            ReferenceCountUtil.touch(message, subscriber);
             subscriber.onNext(next);
             if (outstandingDemand < Long.MAX_VALUE) {
                 outstandingDemand--;
@@ -489,24 +420,7 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
 
     private void complete() {
         if (completed.compareAndSet(false, true)) {
-            switch (state) {
-                case NO_SUBSCRIBER:
-                case BUFFERING:
-                    buffer.add(COMPLETE);
-                    state = DRAINING;
-                    break;
-                case DEMANDING:
-                case IDLE:
-                    subscriber.onComplete();
-                    state = DONE;
-                    break;
-                case NO_SUBSCRIBER_ERROR:
-                    // Ignore, we're already going to complete the stream with an error
-                    // when the subscriber subscribes.
-                    break;
-                default:
-                    // no-op
-            }
+            publishMessageLater(COMPLETE);
         }
     }
 
@@ -531,6 +445,14 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
         }
     }
 
+    @Override
+    public void closeIfNoSubscriber() {
+        if (subscriber == null) {
+            state = DONE;
+            cleanup();
+        }
+    }
+
     /**
      * Release all elements from the buffer.
      */
@@ -540,10 +462,32 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
         }
     }
 
+    private void flushBuffer() {
+        while (!buffer.isEmpty() && outstandingDemand > 0) {
+            if (LOG.isTraceEnabled()) {
+                LOG.trace("HandlerPublisher (state: {}) release message from buffer to satisfy demand: {}", state, outstandingDemand);
+            }
+            publishMessage(buffer.remove());
+        }
+        if (buffer.isEmpty()) {
+            if (outstandingDemand > 0) {
+                if (state == BUFFERING) {
+                    state = DEMANDING;
+                } // otherwise we're draining
+                if (!completed.get()) {
+                    requestDemand();
+                }
+            } else if (state == BUFFERING) {
+                state = IDLE;
+            }
+        }
+    }
+
     /**
      * A channel subscrition.
      */
     private class ChannelSubscription implements Subscription {
+        private volatile boolean cancelled = false;
 
         @Override
         public void request(final long demand) {
@@ -553,6 +497,69 @@ public class HandlerPublisher<T> extends ChannelDuplexHandler implements Publish
         @Override
         public void cancel() {
             executor.execute(HandlerPublisher.this::receivedCancel);
+            // *immediately* stop forwarding messages. The downstream might discard them, and leak buffers!
+            cancelled = true;
+            outstandingDemand = 0;
         }
+
+        private void illegalDemand() {
+            cleanup();
+            subscriber.onError(new IllegalArgumentException("Request for 0 or negative elements in violation of Section 3.9 of the Reactive Streams specification"));
+            ctx.close();
+            state = DONE;
+        }
+
+        private boolean addDemand(long demand) {
+
+            if (demand <= 0) {
+                illegalDemand();
+                return false;
+            } else {
+                if (outstandingDemand < Long.MAX_VALUE) {
+                    outstandingDemand += demand;
+                    if (outstandingDemand < 0) {
+                        outstandingDemand = Long.MAX_VALUE;
+                    }
+                }
+                return true;
+            }
+        }
+
+        private void receivedDemand(long demand) {
+            // has this subscription been cancelled, since we were scheduled?
+            if (cancelled) {
+                return;
+            }
+
+            switch (state) {
+                case BUFFERING:
+                case DRAINING:
+                case DEMANDING:
+                    if (LOG.isTraceEnabled()) {
+                        LOG.trace("HandlerPublisher (state: {}) received demand: {}", state, demand);
+                    }
+
+                    if (addDemand(demand)) {
+                        flushBuffer();
+                    }
+                    break;
+
+                case IDLE:
+                    if (LOG.isTraceEnabled()) {
+                        LOG.trace("HandlerPublisher (state: {}) received demand: {}", state, demand);
+                    }
+
+                    if (addDemand(demand)) {
+                        // Important to change state to demanding before doing a read, in case we get a synchronous
+                        // read back.
+                        state = DEMANDING;
+                        requestDemand();
+                    }
+                    break;
+                default:
+                    // no-op
+            }
+        }
+
     }
 }

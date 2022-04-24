@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.reflect;
 
 import io.micronaut.core.annotation.Internal;
-import io.micronaut.core.convert.ConversionService;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.annotation.UsedByGeneratedCode;
 import io.micronaut.core.naming.NameUtils;
 import io.micronaut.core.reflect.exception.InvocationException;
 import io.micronaut.core.util.StringUtils;
@@ -47,49 +48,43 @@ import java.util.stream.Stream;
  */
 @Internal
 public class ReflectionUtils {
+    /**
+     * Constant for empty class array.
+     */
+    @UsedByGeneratedCode
     public static final Class[] EMPTY_CLASS_ARRAY = new Class[0];
-    private static final Map<Class<?>, Class<?>> PRIMITIVES_TO_WRAPPERS =
-        Collections.unmodifiableMap(new LinkedHashMap<Class<?>, Class<?>>() {
-            {
-                put(boolean.class, Boolean.class);
-                put(byte.class, Byte.class);
-                put(char.class, Character.class);
-                put(double.class, Double.class);
-                put(float.class, Float.class);
-                put(int.class, Integer.class);
-                put(long.class, Long.class);
-                put(short.class, Short.class);
-                put(void.class, Void.class);
-            }
-        });
 
-    private static final Map<Class<?>, Class<?>> WRAPPER_TO_PRIMITIVE =
-        Collections.unmodifiableMap(new LinkedHashMap<Class<?>, Class<?>>() {
-            {
-                put(Boolean.class, boolean.class);
-                put(Byte.class, byte.class);
-                put(Character.class, char.class);
-                put(Double.class, double.class);
-                put(Float.class, float.class);
-                put(Integer.class, int.class);
-                put(Long.class, long.class);
-                put(Short.class, short.class);
-                put(Void.class, void.class);
-            }
-        });
+    private static final Map<Class<?>, Class<?>> PRIMITIVES_TO_WRAPPERS;
 
-    private static final Map<Class<?>, Integer> PRIMITIVE_BYTE_SIZES =
-        Collections.unmodifiableMap(new LinkedHashMap<Class<?>, Integer>() {
-            {
-                put(Byte.class, Byte.BYTES);
-                put(Character.class, Character.BYTES);
-                put(Double.class, Double.BYTES);
-                put(Float.class, Float.BYTES);
-                put(Integer.class, Integer.BYTES);
-                put(Long.class, Long.BYTES);
-                put(Short.class, Short.BYTES);
-            }
-        });
+    static {
+        LinkedHashMap<Class<?>, Class<?>> m = new LinkedHashMap<>();
+        m.put(boolean.class, Boolean.class);
+        m.put(byte.class, Byte.class);
+        m.put(char.class, Character.class);
+        m.put(double.class, Double.class);
+        m.put(float.class, Float.class);
+        m.put(int.class, Integer.class);
+        m.put(long.class, Long.class);
+        m.put(short.class, Short.class);
+        m.put(void.class, Void.class);
+        PRIMITIVES_TO_WRAPPERS = Collections.unmodifiableMap(m);
+    }
+
+    private static final Map<Class<?>, Class<?>> WRAPPER_TO_PRIMITIVE;
+
+    static {
+        LinkedHashMap<Class<?>, Class<?>> m = new LinkedHashMap<>();
+        m.put(Boolean.class, boolean.class);
+        m.put(Byte.class, byte.class);
+        m.put(Character.class, char.class);
+        m.put(Double.class, double.class);
+        m.put(Float.class, float.class);
+        m.put(Integer.class, int.class);
+        m.put(Long.class, long.class);
+        m.put(Short.class, short.class);
+        m.put(Void.class, void.class);
+        WRAPPER_TO_PRIMITIVE = Collections.unmodifiableMap(m);
+    }
 
     /**
      * Is the method a setter.
@@ -118,9 +113,8 @@ public class ReflectionUtils {
     public static Class getWrapperType(Class primitiveType) {
         if (primitiveType.isPrimitive()) {
             return PRIMITIVES_TO_WRAPPERS.get(primitiveType);
-        } else {
-            return primitiveType;
         }
+        return primitiveType;
     }
 
     /**
@@ -133,9 +127,8 @@ public class ReflectionUtils {
         Class<?> wrapper = WRAPPER_TO_PRIMITIVE.get(wrapperType);
         if (wrapper != null) {
             return wrapper;
-        } else {
-            return wrapperType;
         }
+        return wrapperType;
     }
 
     /**
@@ -214,6 +207,7 @@ public class ReflectionUtils {
      * @param argumentTypes The argument types
      * @return An {@link Optional} contains the method or empty
      */
+    @Internal
     public static Optional<Method> findMethod(Class type, String name, Class... argumentTypes) {
         Class currentType = type;
         while (currentType != null) {
@@ -236,6 +230,8 @@ public class ReflectionUtils {
      * @param argumentTypes The argument types
      * @return An {@link Optional} contains the method or empty
      */
+    @UsedByGeneratedCode
+    @Internal
     public static Method getRequiredMethod(Class type, String name, Class... argumentTypes) {
         try {
             return type.getDeclaredMethod(name, argumentTypes);
@@ -289,6 +285,7 @@ public class ReflectionUtils {
      * @param name The name
      * @return An {@link Optional} contains the method or empty
      */
+    @Internal
     public static Field getRequiredField(Class type, String name) {
         try {
             return type.getDeclaredField(name);
@@ -305,6 +302,7 @@ public class ReflectionUtils {
      * @param name The field name
      * @return An {@link Optional} of field
      */
+    @Internal
     public static Optional<Field> findField(Class type, String name) {
         Optional<Field> declaredField = findDeclaredField(type, name);
         if (!declaredField.isPresent()) {
@@ -316,36 +314,6 @@ public class ReflectionUtils {
             }
         }
         return declaredField;
-    }
-
-    /**
-     * Finds a field in the type or super type.
-     *
-     * @param type  The type
-     * @param name  The field name
-     * @param value The value
-     */
-    public static void setFieldIfPossible(Class type, String name, Object value) {
-        Optional<Field> declaredField = findDeclaredField(type, name);
-        if (declaredField.isPresent()) {
-            Field field = declaredField.get();
-            Optional<?> converted = ConversionService.SHARED.convert(value, field.getType());
-            if (converted.isPresent()) {
-                field.setAccessible(true);
-                try {
-                    field.set(type, converted.get());
-                } catch (IllegalAccessException e) {
-                    // ignore
-                }
-            } else {
-                field.setAccessible(true);
-                try {
-                    field.set(type, null);
-                } catch (IllegalAccessException e) {
-                    // ignore
-                }
-            }
-        }
     }
 
     /**
@@ -425,7 +393,7 @@ public class ReflectionUtils {
         Stream<String> stringStream = Arrays.stream(argumentTypes).map(Class::getSimpleName);
         String argsAsText = stringStream.collect(Collectors.joining(","));
 
-        return new NoSuchMethodError("Required method " + name + "(" + argsAsText + ") not found for class: " + declaringType.getName() + ". Most likely cause of this error is that an unsupported or older version of a dependency is present on the classpath. Check your classpath, and ensure the incompatible classes are not present and/or recompile classes as necessary.");
+        return new NoSuchMethodError("Required method " + name + "(" + argsAsText + ") not found for class: " + declaringType.getName() + ". Most likely cause of this error is the method declaration is not annotated with @Executable. Alternatively check that there is not an unsupported or older version of a dependency present on the classpath. Check your classpath, and ensure the incompatible classes are not present and/or recompile classes as necessary.");
     }
 
     private static NoSuchMethodError newNoSuchMethodInternalError(Class declaringType, String name, Class[] argumentTypes) {
@@ -440,5 +408,24 @@ public class ReflectionUtils {
         String argsAsText = stringStream.collect(Collectors.joining(","));
 
         return new NoSuchMethodError("Micronaut constructor " + declaringType.getName() + "(" + argsAsText + ") not found. Most likely reason for this issue is that you are running a newer version of Micronaut with code compiled against an older version. Please recompile the offending classes");
+    }
+
+    /**
+     * Sets the value of the given field reflectively.
+     * @param field The field
+     * @param instance The instance
+     * @param value The value
+     */
+    public static void setField(
+            @NonNull Field field,
+            @NonNull Object instance,
+            @Nullable Object value) {
+        try {
+            ClassUtils.REFLECTION_LOGGER.debug("Reflectively setting field {} to value {} on object {}", field, value, value);
+            field.setAccessible(true);
+            field.set(instance, value);
+        } catch (Throwable e) {
+            throw new InvocationException("Exception occurred setting field [" + field + "]: " + e.getMessage(), e);
+        }
     }
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,6 +37,17 @@ class ReplacesSpec extends Specification {
         !b.all.any() { it instanceof A1 }
         b.all.any() { it instanceof A2 }
         b.a instanceof A2
+    }
+
+    void "test that a bean that has AOP advice applied can be replaced"() {
+        given:
+        BeanContext context = BeanContext.run()
+
+        expect:
+        context.getBeansOfType(H).size() == 1
+        context.getBean(H).test("foo") == "replacement foo"
+        cleanup:
+        context.close()
     }
 
     void "test that named beans can be replaced"() {
@@ -124,6 +135,34 @@ class ReplacesSpec extends Specification {
 
         then:
         d instanceof D2
+
+        cleanup:
+        ctx.close()
+    }
+
+    void "test replacing a bean with AOP bean of the same type"() {
+        given:
+        def ctx = ApplicationContext.run()
+
+        when:
+        F f = ctx.getBean(F)
+
+        then:
+        f.getId() == "replaces"
+
+        cleanup:
+        ctx.close()
+    }
+
+    void "test replacing a chain of factory methods"() {
+        given:
+        def ctx = ApplicationContext.run("factory-replacement-chain")
+
+        when:
+        D d = ctx.getBean(D)
+
+        then:
+        d instanceof D3
 
         cleanup:
         ctx.close()

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import io.micronaut.context.BeanContext
 import io.micronaut.context.DefaultBeanContext
 import io.micronaut.context.exceptions.BeanInstantiationException
 import spock.lang.Specification
+
 /**
  * @author Graeme Rocher
  * @since 1.0
@@ -46,7 +47,7 @@ class ParametrizedFactorySpec extends Specification  {
 
         then:
         def e = thrown(BeanInstantiationException)
-        e.message.contains('Missing bean arguments for type: io.micronaut.inject.factory.parameterizedfactory.C')
+        e.message.contains('Missing bean argument [int count] for type: io.micronaut.inject.factory.parameterizedfactory.C. Required arguments: int count')
 
     }
 
@@ -63,6 +64,14 @@ class ParametrizedFactorySpec extends Specification  {
 
     }
 
+    def "verify that parametrized bean with nullable arguments can be initialized"() {
+        given:
+        BeanContext beanContext = new DefaultBeanContext().start()
 
+        when:
+        D parametrizedBean = beanContext.createBean(D)
 
+        then:
+        parametrizedBean != null
+    }
 }

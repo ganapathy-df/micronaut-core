@@ -1,45 +1,34 @@
-apply plugin: 'com.github.johnrengelman.shadow'
-
-shadowJar {
-    mergeServiceFiles()
-    dependencies {
-        exclude(project(":core"))
-
-        exclude(dependency(dependencyVersion("slf4j")))
-        exclude(dependency(dependencyVersion("snakeyaml")))
-        exclude(dependency(group: 'javax.inject', name: 'javax.inject', version: '1'))
-        exclude(dependency('org.ow2.asm:.*:.*'))
-        exclude(dependency('javax.annotation:.*:.*'))
-        exclude(dependency('org.reactivestreams:.*:.*'))
-        exclude(dependency('com.google.code.findbugs:.*:.*'))
-        exclude(dependency('com.github.ben-manes.caffeine:.*:.*'))
-    }
-    relocate "org.objectweb.asm", "io.micronaut.asm"
-    relocate "com.github.benmanes.caffeine", "io.micronaut.caffeine"
+plugins {
+    id "io.micronaut.build.internal.convention-core-library"
 }
-tasks.withType(com.github.jengelman.gradle.plugins.shadow.tasks.ConfigureShadowRelocation) { t ->
-    t.enabled = false
+
+micronautBuild {
+    core {
+        documented = false
+        usesMicronautTestJunit()
+    }
+
 }
 
 dependencies {
-    shadowCompile group: 'javax.inject', name: 'javax.inject', version: '1'
-    shadowCompile project(":core")
-    shadowCompile dependencyVersion("snakeyaml")
-    shadowCompile dependencyVersion("javax.annotation-api")
-    compile dependencyVersion("javax.annotation-api")
-    compile group: 'javax.inject', name: 'javax.inject', version: '1'
-    compile project(path: ':core')
-    compile dependencyVersion("snakeyaml")
+    api libs.managed.javax.annotation.api
+    compileOnly libs.javax.inject
+    api libs.jakarta.inject.api
+    api libs.managed.jakarta.annotation.api
+    api project(':core')
+    api libs.managed.snakeyaml
 
-    compileOnly "javax.persistence:javax.persistence-api:2.2"
-    compileOnly dependencyVersion("groovy")
-    compile "org.ow2.asm:asm:$asmVersion"
-    compile "org.ow2.asm:asm-commons:$asmVersion"
-    compile "org.ow2.asm:asm-tree:$asmVersion"
-    compileOnly "com.github.ben-manes.caffeine:caffeine:$caffeineVersion"
-    compileOnly dependencyVersion("validation")
+    compileOnly libs.javax.persistence
+    compileOnly libs.managed.groovy
+    compileOnly libs.kotlin.stdlib.jdk8
+    compileOnly libs.managed.validation
 
-    testCompile dependencyVersion("validation")
-    testCompile "com.github.stefanbirkner:system-rules:$systemRulesVersion"
+//    testImplementation libs.managed.validation
+    testImplementation project(":context")
+    testImplementation project(":inject-groovy")
+    testImplementation project(":inject-test-utils")
+    testImplementation libs.systemlambda
+
+    testRuntimeOnly libs.junit.jupiter.engine
 
 }

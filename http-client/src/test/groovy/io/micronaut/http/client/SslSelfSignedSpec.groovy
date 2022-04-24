@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,50 +15,62 @@
  */
 package io.micronaut.http.client
 
-import io.reactivex.Flowable
 import io.micronaut.context.ApplicationContext
+import io.micronaut.context.annotation.Requires
+import io.micronaut.context.env.Environment
+import io.micronaut.core.io.socket.SocketUtils
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
 import io.micronaut.runtime.server.EmbeddedServer
-import spock.lang.AutoCleanup
+import reactor.core.publisher.Flux
+import spock.lang.Retry
 import spock.lang.Shared
 import spock.lang.Specification
 
 class SslSelfSignedSpec extends Specification {
-
     @Shared
-    @AutoCleanup
-    ApplicationContext context = ApplicationContext.run([
-            'micronaut.ssl.enabled': true,
-            'micronaut.ssl.buildSelfSigned': true
-    ])
+    String host = Optional.ofNullable(System.getenv(Environment.HOSTNAME)).orElse(SocketUtils.LOCALHOST)
 
-    @AutoCleanup
-    @Shared
-    EmbeddedServer embeddedServer = context.getBean(EmbeddedServer).start()
+    ApplicationContext context
+    EmbeddedServer embeddedServer
+    HttpClient client
 
-    @Shared
-    @AutoCleanup
-    HttpClient client = context.createBean(HttpClient, embeddedServer.getURL())
+    void setup() {
+        context = ApplicationContext.run([
+                'spec.name': 'SslSelfSignedSpec',
+                'micronaut.ssl.enabled': true,
+                'micronaut.server.ssl.buildSelfSigned': true,
+                'micronaut.server.ssl.port': -1,
+                'micronaut.http.client.ssl.insecure-trust-all-certificates': true,
+        ])
+        embeddedServer = context.getBean(EmbeddedServer).start()
+        client = context.createBean(HttpClient, embeddedServer.getURL())
+    }
+
+    void cleanup() {
+        client.close()
+        context.close()
+    }
 
     void "expect the url to be https"() {
         expect:
-        embeddedServer.getURL().toString() == "https://localhost:8443"
+        embeddedServer.getURL().toString().startsWith("https://${host}:")
     }
 
     void "test send https request"() {
         when:
-        Flowable<HttpResponse<String>> flowable = Flowable.fromPublisher(client.exchange(
+        Flux<HttpResponse<String>> flowable = Flux.from(client.exchange(
                 HttpRequest.GET("/ssl"), String
         ))
-        HttpResponse<String> response = flowable.blockingFirst()
+        HttpResponse<String> response = flowable.blockFirst()
 
         then:
         response.body() == "Hello"
     }
 
+    @Requires(property = 'spec.name', value = 'SslSelfSignedSpec')
     @Controller('/')
     static class SslSelfSignedController {
 

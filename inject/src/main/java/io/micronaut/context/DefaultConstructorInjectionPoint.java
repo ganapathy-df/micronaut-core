@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context;
 
 import io.micronaut.context.env.Environment;
 import io.micronaut.context.exceptions.BeanInstantiationException;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.reflect.ReflectionUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.inject.BeanDefinition;
@@ -27,7 +27,7 @@ import io.micronaut.inject.ConstructorInjectionPoint;
 import io.micronaut.inject.annotation.AbstractEnvironmentAnnotationMetadata;
 import io.micronaut.inject.annotation.DefaultAnnotationMetadata;
 
-import javax.annotation.Nullable;
+import io.micronaut.core.annotation.Nullable;
 import java.lang.reflect.Constructor;
 import java.util.Arrays;
 import java.util.Objects;
@@ -69,9 +69,18 @@ class DefaultConstructorInjectionPoint<T> implements ConstructorInjectionPoint<T
         if (!(annotationMetadata instanceof DefaultAnnotationMetadata)) {
             this.annotationMetadata = AnnotationMetadata.EMPTY_METADATA;
         } else {
-            this.annotationMetadata = new ConstructorAnnotationMetadata((DefaultAnnotationMetadata) annotationMetadata);
+            if (annotationMetadata.hasPropertyExpressions()) {
+                this.annotationMetadata = new ConstructorAnnotationMetadata((DefaultAnnotationMetadata) annotationMetadata);
+            } else {
+                this.annotationMetadata = annotationMetadata;
+            }
         }
         this.arguments = arguments == null ? Argument.ZERO_ARGUMENTS : arguments;
+    }
+
+    @Override
+    public final boolean hasPropertyExpressions() {
+        return annotationMetadata.hasPropertyExpressions();
     }
 
     @Override
@@ -94,17 +103,19 @@ class DefaultConstructorInjectionPoint<T> implements ConstructorInjectionPoint<T
     }
 
     @Override
+    @NonNull
     public Argument<?>[] getArguments() {
         return arguments;
     }
 
     @Override
-    public BeanDefinition getDeclaringBean() {
+    @NonNull
+    public BeanDefinition<T> getDeclaringBean() {
         return declaringBean;
     }
 
     @Override
-    public boolean requiresReflection() {
+    public final boolean requiresReflection() {
         return false;
     }
 
@@ -138,6 +149,7 @@ class DefaultConstructorInjectionPoint<T> implements ConstructorInjectionPoint<T
      * Internal environment aware annotation metadata delegate.
      */
     private final class ConstructorAnnotationMetadata extends AbstractEnvironmentAnnotationMetadata {
+
         ConstructorAnnotationMetadata(DefaultAnnotationMetadata targetMetadata) {
             super(targetMetadata);
         }

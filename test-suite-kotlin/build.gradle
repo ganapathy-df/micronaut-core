@@ -1,24 +1,74 @@
 plugins {
-    id "org.jetbrains.kotlin.jvm" version "1.2.30"
-    id "org.jetbrains.kotlin.kapt" version "1.2.30"
+    id "io.micronaut.build.internal.convention-test-library"
+    id "org.jetbrains.kotlin.jvm"
+    id "org.jetbrains.kotlin.kapt"
 }
 
-ext {
-    bomExclude = true
+micronautBuild {
+    core {
+        usesMicronautTestJunit()
+        usesMicronautTestSpock()
+        usesMicronautTestKotest()
+    }
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.2.30"
-    compile project(':http-server-netty')
-    compile project(':http-client')
-    compile project(':runtime')
+    api libs.kotlin.stdlib
+    api libs.kotlin.reflect
+    api libs.kotlinx.coroutines.core
+    api libs.kotlinx.coroutines.jdk8
+    api libs.kotlinx.coroutines.rx2
+    api project(':http-server-netty')
+    api project(':http-client')
+    api project(':runtime')
 
-    testCompileOnly project(':inject-java')
+    testImplementation project(":context")
+    testImplementation libs.kotlin.test
+    testImplementation libs.kotlinx.coroutines.core
+    testImplementation libs.kotlinx.coroutines.rx2
+    testImplementation libs.kotlinx.coroutines.slf4j
+    testImplementation libs.kotlinx.coroutines.reactor
+
+    // Adding these for now since micronaut-test isnt resolving correctly ... probably need to upgrade gradle there too
+    testImplementation libs.junit.jupiter.api
+
+    testImplementation project(":validation")
+    testImplementation project(":management")
+    testImplementation project(':inject-java')
+    testImplementation project(":inject")
+    testImplementation libs.managed.jcache
+    testImplementation project(':validation')
+    testImplementation project(":http-client")
+    testImplementation project(":session")
+    testImplementation libs.managed.groovy.templates
+
+    testImplementation project(":function-client")
+    testImplementation project(":function-web")
+    testImplementation libs.kotlin.kotest.junit5
+    testImplementation libs.logbook.netty
     kaptTest project(':inject-java')
     kaptTest project(':validation')
-    testCompile "junit:junit:4.7"
+    testImplementation libs.javax.inject
+    testImplementation(libs.micronaut.tracing.zipkin) {
+        exclude module: 'micronaut-bom'
+        exclude module: 'micronaut-http-client'
+        exclude module: 'micronaut-inject'
+        exclude module: 'micronaut-runtime'
+    }
+
+    testRuntimeOnly libs.junit.jupiter.engine
+    testRuntimeOnly libs.aws.java.sdk.lambda
+    if (JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_15)) {
+        testImplementation libs.bcpkix
+    }
+
+    testImplementation libs.managed.reactor
 }
 
-compileTestKotlin {
+tasks.named("compileTestKotlin") {
     kotlinOptions.jvmTarget = "1.8"
+}
+
+tasks.named("test") {
+    useJUnitPlatform()
 }

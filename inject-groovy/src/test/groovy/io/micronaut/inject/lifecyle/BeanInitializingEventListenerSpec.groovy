@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,14 +17,15 @@ package io.micronaut.inject.lifecyle
 
 import io.micronaut.context.BeanContext
 import io.micronaut.context.DefaultBeanContext
+import io.micronaut.context.annotation.Factory
 import io.micronaut.context.event.BeanInitializedEventListener
 import io.micronaut.context.event.BeanInitializingEvent
 import spock.lang.Specification
 
-import javax.annotation.PostConstruct
-import javax.inject.Inject
-import javax.inject.Provider
-import javax.inject.Singleton
+import jakarta.annotation.PostConstruct
+import jakarta.inject.Inject
+import jakarta.inject.Provider
+import jakarta.inject.Singleton
 
 /**
  * Created by graemerocher on 26/05/2017.
@@ -51,7 +52,7 @@ class BeanInitializingEventListenerSpec extends Specification {
         String name = "A"
     }
 
-    @Singleton
+    @Factory
     static class BFactory implements Provider<B> {
         String name = "original"
         boolean postConstructCalled = false
@@ -80,7 +81,7 @@ class BeanInitializingEventListenerSpec extends Specification {
             postConstructCalled = true
             name = name.toUpperCase()
         }
-        @Override
+        @Singleton
         B get() {
             getCalled = true
             return new B(name: name )

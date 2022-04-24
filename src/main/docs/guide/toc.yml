@@ -1,27 +1,31 @@
 introduction:
   title: Introduction
   whatsNew: What's New?
+  upgrading: Upgrading to Micronaut 3.x
 quickStart:
   title: Quick Start
-  buildCLI:
-    title: Build/Install the CLI
-    installSdkman: Install with Sdkman
-    installWindows: Install through Binary on Windows
-    buildSource: Building from Source
+  buildCLI: Install the CLI
   creatingServer: Creating a Server Application
-  ideSetup: Setting up an IDE
+  ideSetup:
+    title: Setting up an IDE
+    ideaSetup: IntelliJ IDEA
+    eclipseSetup: Eclipse
+    vsCodeSetup: Visual Studio Code
   creatingClient: Creating a Client
   deployingApp: Deploying the Application
 ioc:
   title: Inversion of Control
   beans: Defining Beans
   how: How Does it Work?
-  beanContext: The BeanContext 
+  beanContext: The BeanContext
   types: Injectable Container Types
   qualifiers: Bean Qualifiers
+  typed: Limiting Injectable Types
   scopes:
     title: Scopes
-    builtInScopes: Built-In Scopes
+    builtInScopes:
+      title: Built-In Scopes
+      eagerInit: Eager Initialization of Singletons
     refreshable: Refreshable Scope
     metaScopes: Scopes on Meta Annotations
   factories: Bean Factories
@@ -31,7 +35,10 @@ ioc:
   lifecycle: Life-Cycle Methods
   contextEvents: Context Events
   events: Bean Events
+  introspection: Bean Introspection
+  beanValidation: Bean Validation
   annotationMetadata: Bean Annotation Metadata
+  beanImport: Importing Beans from Libraries
   springBeans: Micronaut Beans And Spring
   android: Android Support
 config:
@@ -43,7 +50,9 @@ config:
   customTypeConverter: Custom Type Converters
   eachProperty: Using @EachProperty to Drive Configuration
   eachBean: Using @EachBean to Drive Configuration
+  immutableConfig: Immutable Configuration
   # validation: Validating Configuration
+  bootstrap: Bootstrap Configuration
   jmx:
     title: JMX Support
 aop:
@@ -51,9 +60,10 @@ aop:
   aroundAdvice: Around Advice
   introductionAdvice: Introduction Advice
   adapterAdvice: Method Adapter Advice
+  lifecycleAdvice: Bean Life Cycle Advice
   validation:
     title: Validation Advice
-  caching: 
+  caching:
     title: Cache Advice
   retry:
     title: Retry Advice
@@ -67,6 +77,10 @@ httpServer:
   runningSpecificPort: Running Server on a Specific Port
   routing: HTTP Routing
   binding: Simple Request Binding
+  customArgumentBinding: Custom Argument Binding
+  hostResolution: Host Resolution
+  localeResolution: Locale Resolution
+  clientIpAddress: Client IP Address
   requestResponse: The HttpRequest and HttpResponse
   statusAnnotation: Response Status
   producesAnnotation: Response Content-Type
@@ -78,7 +92,17 @@ httpServer:
   jsonBinding: JSON Binding with Jackson
   datavalidation: Data Validation
   staticResources: Serving Static Resources
-  errorHandling: Error Handling
+  errorHandling:
+    title: Error Handling
+    statusHandlers: Status Handlers
+    localErrorHandling: Local Error Handling
+    globalErrorHandling: Global Error Handling
+    exceptionHandler:
+      title: ExceptionHandler
+      builtInExceptionHandlers: Built-In Exception Handlers
+      customExceptionHandler: Custom Exception Handler
+    errorFormatting: Error Formatting
+  apiVersioning: API Versioning
   formData: Handling Form Data
   serverIO: Writing Response Data
   uploads: File Uploads
@@ -90,18 +114,23 @@ httpServer:
     title: WebSocket Support
     websocketServer: Using @ServerWebSocket
     websocketClient: Using @ClientWebSocket
+  http2Server: HTTP/2 Support
   serverEvents: Server Events
   serverConfiguration:
     title: Configuring the HTTP Server
-    threadPools: Configuring Server Thread Pools
+    threadPools:
+      title: Configuring Server Thread Pools
+      blockingOperations: Blocking Operations
+    nettyPipeline: Configuring the Netty Pipeline
     cors: Configuring CORS
     https: Securing the Server with HTTPS
+    dualProtocol: Enabling HTTP and HTTPS
+    accessLogger: Enabling Access Logger
+    secondaryServers: Starting Secondary Servers
   views:
     title: Server Side View Rendering
-    thymeleaf: Thymeleaf
-    handlebars: Handlebars.java
-    velocity: Apache Velocity
   openapi: OpenAPI / Swagger Support
+  graphql: GraphQL Support
 httpClient:
   title: The HTTP Client
   lowLevelHttpClient:
@@ -111,25 +140,34 @@ httpClient:
     clientUploads: Multipart Client Uploads
     clientStreaming: Streaming JSON over HTTP
     clientConfiguration: Configuring HTTP clients
+    lowLevelClientError: Error Responses
     bindErrors: Bind Errors
+  proxyClient: Proxying Requests with ProxyHttpClient
   clientAnnotation:
     title: Declarative HTTP Clients with @Client
     clientParameters: Customizing Parameter Binding
     clientAnnotationStreaming: Streaming with @Client
+    clientError: Error Responses
     clientHeaders: Customizing Request Headers
     clientJackson: Customizing Jackson Settings
     clientRetry: Retry and Circuit Breaker
     clientFallback: Client Fallbacks
     netflixHystrix: Netflix Hystrix Support
   clientFilter: HTTP Client Filters
+  clientHttp2: HTTP/2 Support
   clientSample: HTTP Client Sample
 cloud:
   title: Cloud Native Features
   cloudConfiguration:
     title: Cloud Configuration
     distributedConfiguration: Distributed Configuration
-    distributedConfigurationConsul: Consul Support
+    distributedConfigurationConsul: HashiCorp Consul Support
+    distributedConfigurationVault: HashiCorp Vault Support
+    distributedConfigurationSpringCloud: Spring Cloud Config Support
     distributedConfigurationAwsParameterStore: AWS Parameter Store Support
+    distributedConfigurationOracleCloudVault: Oracle Cloud Vault Support
+    distributedConfigurationPubSub: Google Cloud Pub/Sub Support
+    distributedConfigurationKubernetes: Kubernetes Support
   serviceDiscovery:
     title: Service Discovery
     serviceDiscoveryConsul: Consul Support
@@ -140,38 +178,30 @@ cloud:
   clientSideLoadBalancing:
     title: Client Side Load Balancing
     netflixRibbon: Netflix Ribbon Support
-  distributedTracing:
-    title: Distributed Tracing
-    zipkin: Tracing with Zipkin
-    jaeger: Tracing with Jaeger
+  distributedTracing: Distributed Tracing
 serverlessFunctions:
   title: Serverless Functions
-  writingFunctions:
-    title: Writing Functions
-    functionApplication: FunctionApplication
-    functionBean: FunctionBean
-    groovyFunctions: Groovy Functions
-  runningFunctions:
-    title: Running Functions
-    functionWeb: Functions as Web Applications
-    functionCLI: Functions as CLI Applications
-  deployingFunctions:
-    title: Deploying Functions
-    lambdaFunctions: Deploying Functions to AWS Lambda
-    openFaasFunctions: Deploying Functions to OpenFaaS
-  callingFunctions: Calling Functions with FunctionClient
+  awsLambda: AWS Lambda
+  gcpFunction: Google Cloud Function
+  gcpCloudRun: Google Cloud Run
+  azureFunction: Azure Function
 messaging:
   title: Message-Driven Microservices
-  kafka:
-    title: Kafka Support
+  kafka: Kafka Support
+  rabbitmq: RabbitMQ Support
+  nats: Nats.io Support
 commandLineApps:
   title: Standalone Command Line Applications
   picocli:
     title: Picocli Support
-    picocliGenerateProject: Generating a Project with the Micronaut CLI
-    picocliQuickStart: Picocli Quick Start
 configurations:
   title: Configurations
+  reactiveConfigs:
+    title: Configurations for Reactive Programming
+    reactor: Reactor Support
+    rxjava3: RxJava 3 Support
+    rxjava2: RxJava 2 Support
+    rxjava1: RxJava 1 Support
   dataAccess:
     title: Configurations for Data Access
     sqlSupport: Configuring a SQL Data Source
@@ -181,18 +211,33 @@ configurations:
     postgresSupport: Configuring Postgres
     redisSupport: Configuring Redis
     cassandraSupport: Configuring Cassandra
-  otherConfigurations:
-    title: Other Configurations
-    rabbitmq: RabbitMQ
+    liquibaseSupport: Configuring Liquibase
+    flywaySupport: Configuring Flyway
+logging:
+  title: Logging
+  loggingMessages: Logging Messages
+  loggingConfiguration: Configuration
+  logback: Logback
+  loggingSystem: Logging System
 languageSupport:
   title: Language Support
-  java: Micronaut for Java
+  java:
+    title: Micronaut for Java
+    java9: Using Micronaut with Java 9+
+    incrementalannotationgradle: Incremental Annotation Processing with Gradle
+    lombok: Using Project Lombok
+    ide: Configuring an IDE
+    retainparameternames: Retaining Parameter Names
   groovy: Micronaut for Groovy
   kotlin:
     title: Micronaut for Kotlin
     kaptintellij: Kotlin, Kapt and IntelliJ
+    gradlekapt: Incremental Annotation Processing with Gradle and Kapt
     openandaop: Kotlin and AOP Advice
     kotlinretainparamnames: Kotlin and Retaining Parameter Names
+    coroutines: Coroutines Support
+    coroutineTracingContextPropagation: Coroutine Tracing Context Propagation
+    kotlinContextPropagation: Reactive Context Propagation
   graal:
     title: Micronaut for GraalVM
     graalServices: Microservices as GraalVM native images
@@ -203,6 +248,7 @@ management:
     title: Creating Endpoints
     endpointAnnotation: The Endpoint Annotation
     endpointMethod: Endpoint Methods
+    endpointSensitivity: Endpoint Sensitivity
     endpointConfiguration: Endpoint Configuration
   providedEndpoints:
     title: Built-In Endpoints
@@ -213,70 +259,43 @@ management:
     refreshEndpoint: The Refresh Endpoint
     routesEndpoint: The Routes Endpoint
     loggersEndpoint: The Loggers Endpoint
+    cachesEndpoint: The Caches Endpoint
     stopEndpoint: The Server Stop Endpoint
+    environmentEndpoint: The Environment Endpoint
+    threadDumpEndpoint: The ThreadDump Endpoint
 security:
   title: Security
-  authenticationProviders: Authentication Providers
-  securityRule:
-      title: Security Rules
-      ipPattern: IP Pattern Rule
-      secured: Secured Annotation
-      interceptUrlMap: Intercept URL Map
-      builtInEndpointsAccess: Built-In Endpoints Security
-  authenticationStrategies:
-    title: Authentication Strategies
-    basicAuth: Basic Auth
-    session: Session Authentication
-    jwt:
-      title: JSON Web Token
-      reader:
-        title: Reading JWT Token
-        bearerToken: Bearer Token Reader
-        cookieToken: Cookie Token Reader
-      jwtGenerator:
-        title: JWT Token Generation
-        jwtGeneratorSignature: JWT Signature
-        jwtGeneratorEncryption: Encrypted JWTs
-      jwtValidation: JWT Token Validation
-      claimsGeneration: Claims Generation
-      render:
-        title: Token Render
-    ldap:
-      title: LDAP Authentication
-      configuration: Configuration
-      extending: Extending Default Behavior
-  rejection: Rejection Handling
-  tokenPropagation: Token Propagation
-  endpoints:
-    title: Built-In Security Controllers
-    login: Login Controller
-    logout: Logout Controller
-    refresh: Refresh Controller
-  retrievingAuthenticatedUser:
-    title: Retrieve the authenticated user
-    securityService: User outside of a controller
-  securityEvents: Security Events
-
 multitenancy:
   title: Multi-Tenancy
-  multitenancyGorm: Multi-Tenancy GORM
 cli:
   title: Micronaut CLI
-  createProject: Creating a Project
-  profiles:
-    title: Profiles
+  createProject:
+    title: Creating a Project
     comparingVersions: Comparing Versions
   features: Features
   commands: Commands
   reloading:
     title: Reloading
+    automaticRestart: Automatic Restart
     jrebel: JRebel
-    springloaded: Spring-Loaded
-    gradleReload: Reloading with Gradle
-    ideReload: Reloading with an IDE
+    gradleReload: Recompiling with Gradle
+    ideReload: Recompiling with an IDE
   proxy: Proxy Configuration
+i18n:
+  title: Internationalization
+  bundle: Resource Bundles
+  localizedMessageSource: Localized Message Source
 appendix:
   title: Appendices
+  architecture: 
+    title: Micronaut Architecture
+    compilerArch: Compiler         
+    annotationArch: Annotation Metadata
+    introspectionArch: Bean Introspections
+    iocArch: Bean Definitions
+    aopArch: AOP Proxies
+    containerArch: Application Context 
+    httpServerArch: HTTP Server
   faq: Frequently Asked Questions (FAQ)
   usingsnapshots: Using Snapshots
   problems: Common Problems

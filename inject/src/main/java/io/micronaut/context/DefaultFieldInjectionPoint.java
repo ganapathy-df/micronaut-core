@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context;
 
 import io.micronaut.context.env.Environment;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.reflect.ReflectionUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.util.ArrayUtils;
@@ -27,7 +27,7 @@ import io.micronaut.inject.FieldInjectionPoint;
 import io.micronaut.inject.annotation.AbstractEnvironmentAnnotationMetadata;
 import io.micronaut.inject.annotation.DefaultAnnotationMetadata;
 
-import javax.annotation.Nullable;
+import io.micronaut.core.annotation.Nullable;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.Field;
 import java.util.Objects;
@@ -35,12 +35,13 @@ import java.util.Objects;
 /**
  * Represents an injection point for a field.
  *
+ * @param <B> The declaring bean type
  * @param <T> The field type
  * @author Graeme Rocher
  * @since 1.0
  */
 @Internal
-class DefaultFieldInjectionPoint<T> implements FieldInjectionPoint<T>, EnvironmentConfigurable {
+class DefaultFieldInjectionPoint<B, T> implements FieldInjectionPoint<B, T>, EnvironmentConfigurable {
 
     private final BeanDefinition declaringBean;
     private final Class declaringType;
@@ -92,7 +93,7 @@ class DefaultFieldInjectionPoint<T> implements FieldInjectionPoint<T>, Environme
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        DefaultFieldInjectionPoint<?> that = (DefaultFieldInjectionPoint<?>) o;
+        DefaultFieldInjectionPoint<?, ?> that = (DefaultFieldInjectionPoint<?, ?>) o;
         return Objects.equals(declaringType, that.declaringType) &&
             Objects.equals(fieldType, that.fieldType) &&
             Objects.equals(field, that.field);
@@ -126,15 +127,15 @@ class DefaultFieldInjectionPoint<T> implements FieldInjectionPoint<T>, Environme
     @Override
     public void set(T instance, Object object) {
         Field field = getField();
-        try {
-            field.setAccessible(true);
-            field.set(instance, object);
-        } catch (Throwable e) {
-            e.printStackTrace();
-        }
+        ReflectionUtils.setField(
+            field,
+            instance,
+            object
+        );
     }
 
     @Override
+    @NonNull
     public Argument<T> asArgument() {
         return Argument.of(
             fieldType,
@@ -171,7 +172,11 @@ class DefaultFieldInjectionPoint<T> implements FieldInjectionPoint<T>, Environme
 
     private AnnotationMetadata initAnnotationMetadata(@Nullable AnnotationMetadata annotationMetadata) {
         if (annotationMetadata instanceof DefaultAnnotationMetadata) {
-            return new FieldAnnotationMetadata((DefaultAnnotationMetadata) annotationMetadata);
+            if (annotationMetadata.hasPropertyExpressions()) {
+                return new FieldAnnotationMetadata((DefaultAnnotationMetadata) annotationMetadata);
+            } else {
+                return annotationMetadata;
+            }
         } else if (annotationMetadata != null) {
             return annotationMetadata;
         }

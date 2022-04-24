@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,36 +15,30 @@
  */
 package io.micronaut.http.client
 
-import io.micronaut.context.ApplicationContext
+import io.micronaut.context.annotation.Property
+import io.micronaut.context.annotation.Requires
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.MediaType
 import io.micronaut.http.annotation.Controller
-import io.micronaut.http.client.exceptions.ContentLengthExceededException
-import io.micronaut.runtime.server.EmbeddedServer
 import io.micronaut.http.annotation.Get
-import spock.lang.AutoCleanup
-import spock.lang.Shared
+import io.micronaut.http.client.annotation.Client
+import io.micronaut.http.client.exceptions.ContentLengthExceededException
+import io.micronaut.test.extensions.spock.annotation.MicronautTest
+import jakarta.inject.Inject
 import spock.lang.Specification
 
 /**
  * @author Graeme Rocher
  * @since 1.0
  */
+@MicronautTest
+@Property(name = "spec.name", value = 'MaxResponseSizeSpec' )
+@Property(name = "micronaut.http.client.maxContentLength", value = '1kb' )
 class MaxResponseSizeSpec extends Specification {
 
-    @Shared
-    @AutoCleanup
-    ApplicationContext context = ApplicationContext.run(
-            "micronaut.http.client.maxContentLength":'1kb'
-    )
-
-    @Shared
-    @AutoCleanup
-    EmbeddedServer embeddedServer = context.getBean(EmbeddedServer).start()
-
-    @Shared
-    @AutoCleanup
-    HttpClient client = context.createBean(HttpClient, embeddedServer.getURL())
+    @Inject
+    @Client("/")
+    HttpClient client
 
     void "test max content length setting"() {
         when:
@@ -55,6 +49,7 @@ class MaxResponseSizeSpec extends Specification {
         e.message == 'The received length exceeds the maximum allowed content length [1024]'
     }
 
+    @Requires(property = "spec.name", value = 'MaxResponseSizeSpec' )
     @Controller("/max")
     static class GetController {
 

@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,15 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.io;
 
 import io.micronaut.core.io.file.FileSystemResourceLoader;
 import io.micronaut.core.io.scan.ClassPathResourceLoader;
+import io.micronaut.core.util.ArgumentUtils;
 
+import io.micronaut.core.annotation.NonNull;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -29,16 +31,25 @@ import java.util.stream.Stream;
  * Resolves resources from a set of {@link ResourceLoader} instances.
  *
  * @author James Kleeh
+ * @author graemerocher
  * @since 1.0
  */
 public class ResourceResolver {
 
-    private final ResourceLoader[] resourceLoaders;
+    private final List<ResourceLoader> resourceLoaders;
 
     /**
-     * @param resourceLoaders The resouce loaders
+     * @param resourceLoaders The resource loaders
      */
-    public ResourceResolver(ResourceLoader[] resourceLoaders) {
+    public ResourceResolver(@NonNull ResourceLoader[] resourceLoaders) {
+        this(Arrays.asList(resourceLoaders));
+    }
+
+    /**
+     * @param resourceLoaders The resource loaders
+     */
+    public ResourceResolver(@NonNull List<ResourceLoader> resourceLoaders) {
+        ArgumentUtils.requireNonNull("resourceLoaders", resourceLoaders);
         this.resourceLoaders = resourceLoaders;
     }
 
@@ -58,8 +69,9 @@ public class ResourceResolver {
      * @param <T>          The type
      * @return An optional resource loader
      */
-    public <T extends ResourceLoader> Optional<T> getLoader(Class<T> resolverType) {
-        return Arrays.stream(resourceLoaders)
+    public @NonNull <T extends ResourceLoader> Optional<T> getLoader(@NonNull Class<T> resolverType) {
+        ArgumentUtils.requireNonNull("resolverType", resolverType);
+        return resourceLoaders.stream()
             .filter(rl -> resolverType.isAssignableFrom(rl.getClass()))
             .map(rl -> (T) rl)
             .findFirst();
@@ -71,8 +83,9 @@ public class ResourceResolver {
      * @param prefix The prefix the loader should support. (classpath:, file:, etc)
      * @return An optional resource loader
      */
-    public Optional<ResourceLoader> getSupportingLoader(String prefix) {
-        return Arrays.stream(resourceLoaders)
+    public @NonNull  Optional<ResourceLoader> getSupportingLoader(@NonNull String prefix) {
+        ArgumentUtils.requireNonNull("prefix", prefix);
+        return resourceLoaders.stream()
             .filter(rl -> rl.supportsPrefix(prefix))
             .findFirst();
     }
@@ -84,7 +97,8 @@ public class ResourceResolver {
      * @param basePath The path to load resources from
      * @return An optional resource loader
      */
-    public Optional<ResourceLoader> getLoaderForBasePath(String basePath) {
+    public @NonNull Optional<ResourceLoader> getLoaderForBasePath(@NonNull String basePath) {
+        ArgumentUtils.requireNonNull("basePath", basePath);
         Optional<ResourceLoader> resourceLoader = getSupportingLoader(basePath);
         return resourceLoader.map(rl -> rl.forBase(basePath));
     }
@@ -95,13 +109,13 @@ public class ResourceResolver {
      * @param path The path to the resource
      * @return An optional input stream
      */
-    public Optional<InputStream> getResourceAsStream(String path) {
+    public @NonNull Optional<InputStream> getResourceAsStream(@NonNull String path) {
+        ArgumentUtils.requireNonNull("path", path);
         Optional<ResourceLoader> resourceLoader = getSupportingLoader(path);
         if (resourceLoader.isPresent()) {
             return resourceLoader.get().getResourceAsStream(path);
-        } else {
-            return Optional.empty();
         }
+        return Optional.empty();
     }
 
     /**
@@ -110,13 +124,13 @@ public class ResourceResolver {
      * @param path The path to the resource
      * @return An optional URL
      */
-    public Optional<URL> getResource(String path) {
+    public @NonNull Optional<URL> getResource(@NonNull String path) {
+        ArgumentUtils.requireNonNull("path", path);
         Optional<ResourceLoader> resourceLoader = getSupportingLoader(path);
         if (resourceLoader.isPresent()) {
             return resourceLoader.get().getResource(path);
-        } else {
-            return Optional.empty();
         }
+        return Optional.empty();
     }
 
     /**
@@ -125,12 +139,12 @@ public class ResourceResolver {
      * @param path The path to the resource
      * @return A stream of URLs
      */
-    public Stream<URL> getResources(String path) {
+    public @NonNull Stream<URL> getResources(@NonNull String path) {
+        ArgumentUtils.requireNonNull("path", path);
         Optional<ResourceLoader> resourceLoader = getSupportingLoader(path);
         if (resourceLoader.isPresent()) {
             return resourceLoader.get().getResources(path);
-        } else {
-            return Stream.empty();
         }
+        return Stream.empty();
     }
 }

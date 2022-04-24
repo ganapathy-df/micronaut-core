@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.reflect;
 
 import io.micronaut.core.util.ArrayUtils;
@@ -22,7 +21,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
 import java.util.Arrays;
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.Optional;
 import java.util.Set;
 
@@ -34,7 +33,6 @@ import java.util.Set;
  * @since 1.0
  */
 public class GenericTypeUtils {
-
 
     /**
      * Resolves a single generic type argument for the given field.
@@ -53,7 +51,6 @@ public class GenericTypeUtils {
         }
         return Optional.empty();
     }
-
 
     /**
      * Resolve all of the type arguments for the given interface from the given type. Also
@@ -78,7 +75,6 @@ public class GenericTypeUtils {
         return resolvedType.map(GenericTypeUtils::resolveTypeArguments)
                 .orElse(ReflectionUtils.EMPTY_CLASS_ARRAY);
     }
-
 
     /**
      * Resolve all of the type arguments for the given super type from the given type.
@@ -185,11 +181,11 @@ public class GenericTypeUtils {
      * @return An optional with the resolved parameterized class
      */
     private static Optional<Class> resolveParameterizedTypeArgument(Type actualTypeArgument) {
-        ParameterizedType pt;
         if (actualTypeArgument instanceof Class) {
             return Optional.of((Class) actualTypeArgument);
-        } else if (actualTypeArgument instanceof ParameterizedType) {
-            pt = (ParameterizedType) actualTypeArgument;
+        }
+        if (actualTypeArgument instanceof ParameterizedType) {
+            ParameterizedType pt = (ParameterizedType) actualTypeArgument;
             Type rawType = pt.getRawType();
             if (rawType instanceof Class) {
                 return Optional.of((Class) rawType);
@@ -203,7 +199,7 @@ public class GenericTypeUtils {
      * @return All generic interfaces
      */
     private static Set<Type> getAllGenericInterfaces(Class<?> aClass) {
-        Set<Type> interfaces = new HashSet<>();
+        Set<Type> interfaces = new LinkedHashSet<>();
         return populateInterfaces(aClass, interfaces);
     }
 

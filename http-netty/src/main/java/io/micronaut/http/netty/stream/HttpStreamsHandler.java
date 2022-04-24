@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,22 +13,37 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.netty.stream;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.http.exceptions.HttpStatusException;
+import io.micronaut.http.netty.AbstractNettyHttpRequest;
 import io.micronaut.http.netty.reactive.HandlerPublisher;
 import io.micronaut.http.netty.reactive.HandlerSubscriber;
-import io.netty.channel.*;
-import io.netty.handler.codec.http.*;
+import io.netty.channel.ChannelDuplexHandler;
+import io.netty.channel.ChannelFutureListener;
+import io.netty.channel.ChannelHandler;
+import io.netty.channel.ChannelHandlerContext;
+import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ChannelPromise;
+import io.netty.handler.codec.http.DefaultHttpResponse;
+import io.netty.handler.codec.http.FullHttpMessage;
+import io.netty.handler.codec.http.FullHttpRequest;
+import io.netty.handler.codec.http.HttpContent;
+import io.netty.handler.codec.http.HttpMessage;
+import io.netty.handler.codec.http.HttpResponseStatus;
+import io.netty.handler.codec.http.HttpVersion;
+import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.util.ReferenceCountUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import reactor.core.publisher.Flux;
 
 import java.util.LinkedList;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Base class for Http Streams handlers.
@@ -43,8 +58,10 @@ import java.util.Queue;
 @Internal
 abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessage> extends ChannelDuplexHandler {
 
+    public static final String HANDLER_BODY_PUBLISHER = "http-streams-codec-body-publisher";
     private static final Logger LOG = LoggerFactory.getLogger(HttpStreamsHandler.class);
-    private final Queue<Outgoing> outgoing = new LinkedList<>();
+
+    private final Queue<Outgoing<Out>> outgoing = new LinkedList<>();
     private final Class<In> inClass;
     private final Class<Out> outClass;
 
@@ -73,6 +90,12 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
      * doesn't, then we need to write one ourselves.
      */
     private boolean sendLastHttpContent;
+
+    /**
+     * Whether a {@link StreamedHttpMessage} is currently being written, and further messages should be held back until
+     * complete. Used for HTTP pipelining.
+     */
+    private boolean outgoingInFlight;
 
     /**
      * @param inClass  The in class
@@ -107,7 +130,7 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
      * @param stream The publisher for the Http Content
      * @return An streamed incoming message
      */
-    protected abstract In createStreamedMessage(In in, Publisher<HttpContent> stream);
+    protected abstract In createStreamedMessage(In in, Publisher<? extends HttpContent> stream);
 
     /**
      * Invoked when an incoming message is first received.
@@ -172,6 +195,11 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
     protected void bodyRequested(ChannelHandlerContext ctx) {
     }
 
+    /**
+     * @return Whether this is the client stream handler.
+     */
+    protected abstract boolean isClient();
+
     @Override
     public void channelRead(final ChannelHandlerContext ctx, Object msg) throws Exception {
 
@@ -181,11 +209,15 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
             final In inMsg = inClass.cast(msg);
 
             if (inMsg instanceof FullHttpMessage) {
-
-                // Forward as is
-                ctx.fireChannelRead(inMsg);
+                FullHttpMessage fullMessage = (FullHttpMessage) inMsg;
+                if (!(fullMessage instanceof FullHttpRequest) || fullMessage.content().readableBytes() == 0) {
+                    // Forward as is
+                    ctx.fireChannelRead(inMsg);
+                } else {
+                    // create streamed message with just the data from the request
+                    ctx.fireChannelRead(createStreamedMessage(inMsg, Flux.just(fullMessage)));
+                }
                 consumedInMessage(ctx);
-
             } else if (!hasBody(inMsg)) {
 
                 // Wrap in empty message
@@ -199,29 +231,68 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
 
                 currentlyStreamedMessage = inMsg;
                 // It has a body, stream it
-                HandlerPublisher<HttpContent> publisher = new HandlerPublisher<HttpContent>(ctx.executor(), HttpContent.class) {
-                    @Override
-                    protected void cancelled() {
-                        if (ctx.executor().inEventLoop()) {
-                            handleCancelled(ctx, inMsg);
-                        } else {
-                            ctx.executor().execute(() -> handleCancelled(ctx, inMsg));
+                int streamId = getStreamId(msg);
+                HandlerPublisher<? extends HttpContent> publisher;
+                if (streamId > -1) {
+                    publisher = new HandlerPublisher<Http2Content>(ctx.executor(), Http2Content.class) {
+                        @Override
+                        protected boolean acceptInboundMessage(Object msg) {
+                            return super.acceptInboundMessage(msg) && ((Http2Content) msg).stream().id() == streamId;
                         }
-                    }
 
-                    @Override
-                    protected void requestDemand() {
-                        bodyRequested(ctx);
-                        super.requestDemand();
-                    }
-                };
+                        @Override
+                        protected void cancelled() {
+                            if (ctx.executor().inEventLoop()) {
+                                handleCancelled(ctx, inMsg);
+                            } else {
+                                ctx.executor().execute(() -> handleCancelled(ctx, inMsg));
+                            }
+                        }
 
-                ctx.channel().pipeline().addAfter(ctx.name(), ctx.name() + "-body-publisher", publisher);
+                        @Override
+                        protected void requestDemand() {
+                            bodyRequested(ctx);
+                            super.requestDemand();
+                        }
+                    };
+                } else {
+
+                    publisher = new HandlerPublisher<HttpContent>(ctx.executor(), HttpContent.class) {
+                        @Override
+                        protected void cancelled() {
+                            if (ctx.executor().inEventLoop()) {
+                                handleCancelled(ctx, inMsg);
+                            } else {
+                                ctx.executor().execute(() -> handleCancelled(ctx, inMsg));
+                            }
+                        }
+
+                        @Override
+                        protected void requestDemand() {
+                            bodyRequested(ctx);
+                            super.requestDemand();
+                        }
+                    };
+                }
+
+                ctx.channel().pipeline().addAfter(ctx.name(), HANDLER_BODY_PUBLISHER, publisher);
                 ctx.fireChannelRead(createStreamedMessage(inMsg, publisher));
             }
         } else if (msg instanceof HttpContent) {
             handleReadHttpContent(ctx, (HttpContent) msg);
         }
+    }
+
+    /**
+     * Gets the stream ID from the message.
+     * @param msg The message
+     * @return The stream id
+     */
+    protected int getStreamId(Object msg) {
+        if (msg instanceof io.netty.handler.codec.http.HttpMessage) {
+            return ((io.netty.handler.codec.http.HttpMessage) msg).headers().getInt(AbstractNettyHttpRequest.STREAM_ID, -1);
+        }
+        return -1;
     }
 
     private void handleCancelled(ChannelHandlerContext ctx, In msg) {
@@ -232,38 +303,35 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
                 LOG.trace("Calling ctx.read() for cancelled subscription");
             }
             ctx.read();
+            if (isClient()) {
+                ctx.fireChannelWritabilityChanged();
+            }
         }
     }
 
     private void handleReadHttpContent(ChannelHandlerContext ctx, HttpContent content) {
         if (!ignoreBodyRead) {
-            if (content instanceof LastHttpContent) {
-
-                if (content.content().readableBytes() > 0 ||
-                    !((LastHttpContent) content).trailingHeaders().isEmpty()) {
-                    // It has data or trailing headers, send them
-                    ctx.fireChannelRead(content);
-                } else {
-                    ReferenceCountUtil.release(content);
-                }
-
-                removeHandlerIfActive(ctx, ctx.name() + "-body-publisher");
-                currentlyStreamedMessage = null;
-                consumedInMessage(ctx);
-
-            } else {
+            ChannelHandler bodyPublisher = ctx.pipeline().get(HANDLER_BODY_PUBLISHER);
+            if (bodyPublisher != null) {
                 ctx.fireChannelRead(content);
+                if (content instanceof LastHttpContent) {
+                    currentlyStreamedMessage = null;
+                    removeHandlerIfActive(ctx, HANDLER_BODY_PUBLISHER);
+                    consumedInMessage(ctx);
+                }
+            } else {
+                ReferenceCountUtil.release(content, content.refCnt());
             }
-
         } else {
-            ReferenceCountUtil.release(content);
+            ReferenceCountUtil.release(content, content.refCnt());
             if (content instanceof LastHttpContent) {
                 ignoreBodyRead = false;
                 if (currentlyStreamedMessage != null) {
-                    removeHandlerIfActive(ctx, ctx.name() + "-body-publisher");
+                    removeHandlerIfActive(ctx, HANDLER_BODY_PUBLISHER);
                 }
                 currentlyStreamedMessage = null;
             }
+            ctx.read();
         }
     }
 
@@ -280,15 +348,9 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
     public void write(final ChannelHandlerContext ctx, Object msg, final ChannelPromise promise) throws Exception {
         if (isValidOutMessage(msg)) {
 
-            Outgoing out = new Outgoing(outClass.cast(msg), promise);
             receivedOutMessage(ctx);
-
-            if (outgoing.isEmpty()) {
-                outgoing.add(out);
-                flushNext(ctx);
-            } else {
-                outgoing.add(out);
-            }
+            outgoing.add(new Outgoing<>((Out) msg, promise));
+            proceedWriteOutgoing(ctx);
 
         } else if (msg instanceof LastHttpContent) {
 
@@ -300,34 +362,63 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
         }
     }
 
+    @Override
+    public void channelWritabilityChanged(ChannelHandlerContext ctx) {
+        proceedWriteOutgoing(ctx);
+    }
+
+    private void proceedWriteOutgoing(ChannelHandlerContext ctx) {
+        while (!outgoingInFlight && ctx.channel().isWritable() && !outgoing.isEmpty()) {
+            Outgoing<Out> out = outgoing.remove();
+            unbufferedWrite(ctx, out.message, out.promise);
+        }
+    }
+
     /**
      * @param ctx The channel handler context
-     * @param out The output stream
+     * @param message The message
+     * @param promise The promise
      */
-    protected void unbufferedWrite(final ChannelHandlerContext ctx, final Outgoing out) {
+    protected void unbufferedWrite(final ChannelHandlerContext ctx, final Out message, ChannelPromise promise) {
 
-        if (out.message instanceof FullHttpMessage) {
+        if (message instanceof FullHttpMessage) {
             // Forward as is
-            ctx.writeAndFlush(out.message, out.promise);
-            out.promise.addListener((ChannelFutureListener) channelFuture -> executeInEventLoop(ctx, () -> {
-                sentOutMessage(ctx);
-                outgoing.remove();
-                flushNext(ctx);
-            }));
+            ctx.writeAndFlush(message, promise);
+            sentOutMessage(ctx);
+        } else if (message instanceof StreamedHttpMessage) {
+            outgoingInFlight = true;
 
-        } else if (out.message instanceof StreamedHttpMessage) {
-
-            StreamedHttpMessage streamed = (StreamedHttpMessage) out.message;
+            StreamedHttpMessage streamed = (StreamedHttpMessage) message;
             HandlerSubscriber<HttpContent> subscriber = new HandlerSubscriber<HttpContent>(ctx.executor()) {
+                AtomicBoolean messageWritten = new AtomicBoolean();
+
+                @Override
+                public void onNext(HttpContent httpContent) {
+                    if (messageWritten.compareAndSet(false, true)) {
+                        ChannelPromise messageWritePromise = ctx.newPromise();
+                        //if oncomplete gets called before the message is written the promise
+                        //set to lastWriteFuture shouldn't complete until the first content is written
+                        lastWriteFuture = messageWritePromise;
+                        ctx.writeAndFlush(message).addListener(f -> super.onNext(httpContent, messageWritePromise));
+                    } else {
+                        super.onNext(httpContent);
+                    }
+                }
+
                 @Override
                 protected void error(Throwable error) {
                     try {
-
                         if (LOG.isErrorEnabled()) {
                             LOG.error("Error occurred writing stream response: " + error.getMessage(), error);
                         }
-                        ctx.writeAndFlush(new DefaultHttpResponse(HttpVersion.HTTP_1_1, HttpResponseStatus.INTERNAL_SERVER_ERROR))
-                           .addListener(ChannelFutureListener.CLOSE);
+                        HttpResponseStatus responseStatus;
+                        if (error instanceof HttpStatusException) {
+                            responseStatus = HttpResponseStatus.valueOf(((HttpStatusException) error).getStatus().getCode(), error.getMessage());
+                        } else {
+                            responseStatus = HttpResponseStatus.INTERNAL_SERVER_ERROR;
+                        }
+                        ctx.writeAndFlush(new DefaultHttpResponse(HttpVersion.HTTP_1_1, responseStatus))
+                                .addListener(ChannelFutureListener.CLOSE);
                     } finally {
                         ctx.read();
                     }
@@ -335,14 +426,23 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
 
                 @Override
                 protected void complete() {
-                    executeInEventLoop(ctx, () -> completeBody(ctx));
+                    if (messageWritten.compareAndSet(false, true)) {
+                        ctx.writeAndFlush(message).addListener(future -> doOnComplete());
+                    } else {
+                        doOnComplete();
+                    }
+                }
+
+                private void doOnComplete() {
+                    if (ctx.executor().inEventLoop()) {
+                        completeBody(ctx, promise);
+                    } else {
+                        ctx.executor().execute(() -> completeBody(ctx, promise));
+                    }
                 }
             };
 
             sendLastHttpContent = true;
-
-            // DON'T pass the promise through, create a new promise instead.
-            ctx.writeAndFlush(out.message);
 
             ctx.pipeline().addAfter(ctx.name(), ctx.name() + "-body-subscriber", subscriber);
             subscribeSubscriberToStream(streamed, subscriber);
@@ -350,24 +450,22 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
 
     }
 
-    private void completeBody(final ChannelHandlerContext ctx) {
+    private void completeBody(final ChannelHandlerContext ctx, ChannelPromise promise) {
         removeHandlerIfActive(ctx, ctx.name() + "-body-subscriber");
 
         if (sendLastHttpContent) {
-            ChannelPromise promise = outgoing.peek().promise;
-            ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT, promise).addListener(
-                (ChannelFutureListener) channelFuture -> executeInEventLoop(ctx, () -> {
-                    outgoing.remove();
-                    sentOutMessage(ctx);
-                    flushNext(ctx);
-                })
-            );
-            ctx.read();
+            ctx.writeAndFlush(LastHttpContent.EMPTY_LAST_CONTENT, promise).addListener((f) -> {
+                sentOutMessage(ctx);
+                ctx.read();
+                outgoingInFlight = false;
+                proceedWriteOutgoing(ctx);
+            });
         } else {
-            outgoing.remove().promise.setSuccess();
+            promise.setSuccess();
             sentOutMessage(ctx);
-            flushNext(ctx);
             ctx.read();
+            outgoingInFlight = false;
+            proceedWriteOutgoing(ctx);
         }
     }
 
@@ -384,22 +482,6 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
             if (handler != null) {
                 pipeline.remove(name);
             }
-        }
-    }
-
-    private void flushNext(ChannelHandlerContext ctx) {
-        if (!outgoing.isEmpty()) {
-            unbufferedWrite(ctx, outgoing.element());
-        } else {
-            ctx.fireChannelWritabilityChanged();
-        }
-    }
-
-    private void executeInEventLoop(ChannelHandlerContext ctx, Runnable runnable) {
-        if (ctx.executor().inEventLoop()) {
-            runnable.run();
-        } else {
-            ctx.executor().execute(runnable);
         }
     }
 
@@ -421,16 +503,18 @@ abstract class HttpStreamsHandler<In extends HttpMessage, Out extends HttpMessag
 
     /**
      * The outgoing class.
+     *
+     * @param <O> The message type
      */
-    class Outgoing {
-        final Out message;
+    static class Outgoing<O extends HttpMessage> {
+        final O message;
         final ChannelPromise promise;
 
         /**
          * @param message The output message
          * @param promise The channel promise
          */
-        Outgoing(Out message, ChannelPromise promise) {
+        Outgoing(O message, ChannelPromise promise) {
             this.message = message;
             this.promise = promise;
         }

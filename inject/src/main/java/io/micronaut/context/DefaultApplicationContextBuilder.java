@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,23 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context;
 
+import io.micronaut.context.env.CommandLinePropertySource;
 import io.micronaut.context.env.Environment;
 import io.micronaut.context.env.PropertySource;
 import io.micronaut.context.env.SystemPropertiesPropertySource;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.cli.CommandLine;
 import io.micronaut.core.io.scan.ClassPathResourceLoader;
+import io.micronaut.core.order.OrderUtil;
 import io.micronaut.core.util.StringUtils;
 
-import javax.annotation.Nullable;
+import java.lang.annotation.Annotation;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.ServiceLoader;
+import java.util.Set;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Implementation of {@link ApplicationContextBuilder}.
@@ -37,24 +47,79 @@ import java.util.Map;
  * @author graemerocher
  * @since 1.0
  */
-public class DefaultApplicationContextBuilder implements ApplicationContextBuilder {
+public class DefaultApplicationContextBuilder implements ApplicationContextBuilder, ApplicationContextConfiguration {
     private List<Object> singletons = new ArrayList<>();
     private List<String> environments = new ArrayList<>();
+    private List<String> defaultEnvironments = new ArrayList<>();
     private List<String> packages = new ArrayList<>();
     private Map<String, Object> properties = new LinkedHashMap<>();
     private List<PropertySource> propertySources = new ArrayList<>();
-    private ClassPathResourceLoader classPathResourceLoader;
     private Collection<String> configurationIncludes = new HashSet<>();
     private Collection<String> configurationExcludes = new HashSet<>();
+    private Boolean deduceEnvironments = null;
+    private ClassLoader classLoader = getClass().getClassLoader();
+    private boolean envPropertySource = true;
+    private List<String> envVarIncludes = new ArrayList<>();
+    private List<String> envVarExcludes = new ArrayList<>();
+    private String[] args = new String[0];
+    private Set<Class<? extends Annotation>> eagerInitAnnotated = new HashSet<>(3);
+    private String[] overrideConfigLocations;
+    private boolean banner = true;
+    private ClassPathResourceLoader classPathResourceLoader;
+    private boolean allowEmptyProviders = false;
+    private Boolean bootstrapEnvironment = null;
 
     /**
      * Default constructor.
      */
     protected DefaultApplicationContextBuilder() {
+        loadApplicationContextCustomizer().configure(this);
     }
 
     @Override
-    public ApplicationContextBuilder singletons(Object... beans) {
+    public boolean isAllowEmptyProviders() {
+        return allowEmptyProviders;
+    }
+
+    @NonNull
+    @Override
+    public ApplicationContextBuilder eagerInitAnnotated(Class<? extends Annotation>... annotations) {
+        if (annotations != null) {
+            eagerInitAnnotated.addAll(Arrays.asList(annotations));
+        }
+        return this;
+    }
+
+    @NonNull
+    @Override
+    public ApplicationContextBuilder overrideConfigLocations(String... configLocations) {
+        overrideConfigLocations = configLocations;
+        return this;
+    }
+
+    @Override
+    public @Nullable  List<String> getOverrideConfigLocations() {
+        return overrideConfigLocations == null ? null : Arrays.asList(overrideConfigLocations);
+    }
+
+    @Override
+    public boolean isBannerEnabled() {
+        return banner;
+    }
+
+    @Nullable
+    @Override
+    public Boolean isBootstrapEnvironmentEnabled() {
+        return bootstrapEnvironment;
+    }
+
+    @Override
+    public Set<Class<? extends Annotation>> getEagerInitAnnotated() {
+        return Collections.unmodifiableSet(eagerInitAnnotated);
+    }
+
+    @Override
+    public @NonNull ApplicationContextBuilder singletons(Object... beans) {
         if (beans != null) {
             singletons.addAll(Arrays.asList(beans));
         }
@@ -62,7 +127,31 @@ public class DefaultApplicationContextBuilder implements ApplicationContextBuild
     }
 
     @Override
-    public ApplicationContextBuilder environments(@Nullable String... environments) {
+    public @NonNull ClassPathResourceLoader getResourceLoader() {
+        if (classPathResourceLoader == null) {
+            if (classLoader != null) {
+                classPathResourceLoader = ClassPathResourceLoader.defaultLoader(classLoader);
+            } else {
+                classPathResourceLoader = ClassPathResourceLoader.defaultLoader(getClass().getClassLoader());
+            }
+        }
+        return classPathResourceLoader;
+    }
+
+    @NonNull
+    @Override
+    public ClassLoader getClassLoader() {
+        return this.classLoader;
+    }
+
+    @Override
+    public @NonNull ApplicationContextBuilder deduceEnvironment(@Nullable Boolean deduceEnvironments) {
+        this.deduceEnvironments = deduceEnvironments;
+        return this;
+    }
+
+    @Override
+    public @NonNull ApplicationContextBuilder environments(@Nullable String... environments) {
         if (environments != null) {
             this.environments.addAll(Arrays.asList(environments));
         }
@@ -70,7 +159,15 @@ public class DefaultApplicationContextBuilder implements ApplicationContextBuild
     }
 
     @Override
-    public ApplicationContextBuilder packages(@Nullable String... packages) {
+    public @NonNull ApplicationContextBuilder defaultEnvironments(@Nullable String... environments) {
+        if (environments != null) {
+            this.defaultEnvironments.addAll(Arrays.asList(environments));
+        }
+        return this;
+    }
+
+    @Override
+    public @NonNull ApplicationContextBuilder packages(@Nullable String... packages) {
         if (packages != null) {
             this.packages.addAll(Arrays.asList(packages));
         }
@@ -78,7 +175,7 @@ public class DefaultApplicationContextBuilder implements ApplicationContextBuild
     }
 
     @Override
-    public ApplicationContextBuilder properties(@Nullable Map<String, Object> properties) {
+    public @NonNull ApplicationContextBuilder properties(@Nullable Map<String, Object> properties) {
         if (properties != null) {
             this.properties.putAll(properties);
         }
@@ -86,7 +183,7 @@ public class DefaultApplicationContextBuilder implements ApplicationContextBuild
     }
 
     @Override
-    public ApplicationContextBuilder propertySources(@Nullable PropertySource... propertySources) {
+    public @NonNull ApplicationContextBuilder propertySources(@Nullable PropertySource... propertySources) {
         if (propertySources != null) {
             this.propertySources.addAll(Arrays.asList(propertySources));
         }
@@ -94,10 +191,63 @@ public class DefaultApplicationContextBuilder implements ApplicationContextBuild
     }
 
     @Override
-    public ApplicationContextBuilder mainClass(Class mainClass) {
+    public @NonNull ApplicationContextBuilder environmentPropertySource(boolean environmentPropertySource) {
+        this.envPropertySource = environmentPropertySource;
+        return this;
+    }
+
+    @Override
+    public @NonNull ApplicationContextBuilder environmentVariableIncludes(@Nullable String... environmentVariables) {
+        if (environmentVariables != null) {
+            this.envVarIncludes.addAll(Arrays.asList(environmentVariables));
+        }
+        return this;
+    }
+
+    @Override
+    public @NonNull ApplicationContextBuilder environmentVariableExcludes(@Nullable String... environmentVariables) {
+        if (environmentVariables != null) {
+            this.envVarExcludes.addAll(Arrays.asList(environmentVariables));
+        }
+        return this;
+    }
+
+    @Override
+    public Optional<Boolean> getDeduceEnvironments() {
+        return Optional.ofNullable(deduceEnvironments);
+    }
+
+    @Override
+    public @NonNull List<String> getEnvironments() {
+        return environments;
+    }
+
+    @Override
+    public @NonNull List<String> getDefaultEnvironments() {
+        return defaultEnvironments;
+    }
+
+    @Override
+    public boolean isEnvironmentPropertySource() {
+        return envPropertySource;
+    }
+
+    @Override
+    public @Nullable List<String> getEnvironmentVariableIncludes() {
+        return envVarIncludes.isEmpty() ? null : envVarIncludes;
+    }
+
+    @Override
+    public @Nullable List<String> getEnvironmentVariableExcludes() {
+        return envVarExcludes.isEmpty() ? null : envVarExcludes;
+    }
+
+    @Override
+    public @NonNull ApplicationContextBuilder mainClass(Class mainClass) {
         if (mainClass != null) {
-            ClassLoader classLoader = mainClass.getClassLoader();
-            this.classPathResourceLoader = ClassPathResourceLoader.defaultLoader(classLoader);
+            if (this.classLoader == null) {
+                this.classLoader = mainClass.getClassLoader();
+            }
             String name = mainClass.getPackage().getName();
             if (StringUtils.isNotEmpty(name)) {
                 packages(name);
@@ -107,22 +257,31 @@ public class DefaultApplicationContextBuilder implements ApplicationContextBuild
     }
 
     @Override
-    public ApplicationContextBuilder classLoader(ClassLoader classLoader) {
+    public @NonNull ApplicationContextBuilder classLoader(ClassLoader classLoader) {
         if (classLoader != null) {
-            this.classPathResourceLoader = ClassPathResourceLoader.defaultLoader(classLoader);
+            this.classLoader = classLoader;
         }
         return this;
     }
 
     @Override
-    @SuppressWarnings("MagicNumber")
-    public ApplicationContext build() {
-        ClassLoader classLoader = ApplicationContext.class.getClassLoader();
-        DefaultApplicationContext applicationContext = new DefaultApplicationContext(
-            classPathResourceLoader != null ? classPathResourceLoader : ClassPathResourceLoader.defaultLoader(classLoader),
-            environments.toArray(new String[0])
-        );
+    public @NonNull ApplicationContextBuilder args(@Nullable String... args) {
+        if (args != null) {
+            this.args = args;
+        }
+        return this;
+    }
 
+    @Override
+    public @NonNull ApplicationContextBuilder bootstrapEnvironment(boolean bootstrapEnv) {
+        this.bootstrapEnvironment = bootstrapEnv;
+        return this;
+    }
+
+    @Override
+    @SuppressWarnings("MagicNumber")
+    public @NonNull ApplicationContext build() {
+        ApplicationContext applicationContext = newApplicationContext();
         Environment environment = applicationContext.getEnvironment();
         if (!packages.isEmpty()) {
             for (String aPackage : packages) {
@@ -132,6 +291,10 @@ public class DefaultApplicationContextBuilder implements ApplicationContextBuild
         if (!properties.isEmpty()) {
             PropertySource contextProperties = PropertySource.of(PropertySource.CONTEXT, properties, SystemPropertiesPropertySource.POSITION + 100);
             environment.addPropertySource(contextProperties);
+        }
+        if (args.length > 0) {
+            CommandLine commandLine = CommandLine.parse(args);
+            environment.addPropertySource(new CommandLinePropertySource(commandLine));
         }
         if (!propertySources.isEmpty()) {
             for (PropertySource propertySource : propertySources) {
@@ -145,13 +308,24 @@ public class DefaultApplicationContextBuilder implements ApplicationContextBuild
         }
 
         if (!configurationIncludes.isEmpty()) {
-            environment.addConfigurationIncludes(configurationIncludes.toArray(new String[0]));
+            environment.addConfigurationIncludes(configurationIncludes.toArray(StringUtils.EMPTY_STRING_ARRAY));
         }
         if (!configurationExcludes.isEmpty()) {
-            environment.addConfigurationExcludes(configurationExcludes.toArray(new String[0]));
+            environment.addConfigurationExcludes(configurationExcludes.toArray(StringUtils.EMPTY_STRING_ARRAY));
         }
-
         return applicationContext;
+    }
+
+    /**
+     * Creates the {@link ApplicationContext} instance.
+     * @return The application context
+     * @since 2.0
+     */
+    @NonNull
+    protected ApplicationContext newApplicationContext() {
+        return new DefaultApplicationContext(
+                this
+        );
     }
 
     /**
@@ -161,7 +335,7 @@ public class DefaultApplicationContextBuilder implements ApplicationContextBuild
      * @return This application
      */
     @Override
-    public ApplicationContextBuilder include(@Nullable String... configurations) {
+    public @NonNull ApplicationContextBuilder include(@Nullable String... configurations) {
         if (configurations != null) {
             this.configurationIncludes.addAll(Arrays.asList(configurations));
         }
@@ -175,10 +349,53 @@ public class DefaultApplicationContextBuilder implements ApplicationContextBuild
      * @return This application
      */
     @Override
-    public ApplicationContextBuilder exclude(@Nullable String... configurations) {
+    public @NonNull ApplicationContextBuilder exclude(@Nullable String... configurations) {
         if (configurations != null) {
             this.configurationExcludes.addAll(Arrays.asList(configurations));
         }
         return this;
+    }
+
+    @Override
+    public @NonNull ApplicationContextBuilder banner(boolean isEnabled) {
+        this.banner = isEnabled;
+        return this;
+    }
+
+    @Override
+    public @NonNull ApplicationContextBuilder allowEmptyProviders(boolean shouldAllow) {
+        this.allowEmptyProviders = shouldAllow;
+        return this;
+    }
+
+    /**
+     * Returns a customizer which is the aggregation of all
+     * customizers found on classpath via service loading.
+     * @return an application customizer
+     */
+    @NonNull
+    private static ApplicationContextConfigurer loadApplicationContextCustomizer() {
+        ServiceLoader<ApplicationContextConfigurer> loader = ServiceLoader.load(
+                ApplicationContextConfigurer.class
+        );
+        List<ApplicationContextConfigurer> configurers = StreamSupport.stream(loader.spliterator(), false)
+                .collect(Collectors.toList());
+        if (configurers.isEmpty()) {
+            return ApplicationContextConfigurer.NO_OP;
+        }
+        if (configurers.size() == 1) {
+            return configurers.get(0);
+        }
+        OrderUtil.sort(configurers);
+        return new ApplicationContextConfigurer() {
+
+            @Override
+            public void configure(ApplicationContextBuilder builder) {
+                for (ApplicationContextConfigurer customizer : configurers) {
+                    customizer.configure(builder);
+                }
+            }
+
+        };
     }
 }

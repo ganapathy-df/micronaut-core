@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context.annotation;
 
 import io.micronaut.context.condition.Condition;
 import io.micronaut.context.condition.TrueCondition;
+import io.micronaut.core.annotation.InstantiatedMember;
 
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Documented;
@@ -35,7 +35,7 @@ import java.lang.annotation.Target;
  */
 @Documented
 @Retention(RetentionPolicy.RUNTIME)
-@Target({ElementType.PACKAGE, ElementType.TYPE, ElementType.ANNOTATION_TYPE, ElementType.METHOD})
+@Target({ElementType.PACKAGE, ElementType.TYPE, ElementType.ANNOTATION_TYPE, ElementType.METHOD, ElementType.FIELD})
 @Repeatable(Requirements.class)
 public @interface Requires {
 
@@ -54,9 +54,7 @@ public @interface Requires {
     String[] notEnv() default {};
 
     /**
-     * Expresses that the given property should be set for the bean to load. By default the value of the property
-     * should be "yes", "YES", "true", "TRUE", "y" or "Y" for it to be considered to be set. If a different value is
-     * to be used then the {@link #value()} method should be used.
+     * Expresses that the given property should be set for the bean to load.
      *
      * @return The property that should be set.
      */
@@ -74,6 +72,7 @@ public @interface Requires {
      *
      * @return The condition classes
      */
+    @InstantiatedMember
     Class<? extends Condition> condition() default TrueCondition.class;
 
     /**
@@ -150,6 +149,14 @@ public @interface Requires {
     Class[] missing() default {};
 
     /**
+     * Expresses the given class names should be missing from the classpath for the bean configuration to load.
+     *
+     * @return The names of the classes that should be missing
+     */
+    @AliasFor(member = "missing")
+    String[] missingClasses() default {};
+
+    /**
      * Expresses the given beans that should be missing from the classpath for the bean or configuration to load.
      *
      * @return The classes
@@ -172,11 +179,64 @@ public @interface Requires {
     String missingProperty() default "";
 
     /**
+     * Expresses the given resources should exist for the bean configuration to load.
+     * Resources can be anything that {@link io.micronaut.core.io.ResourceResolver} can read, eg:
+     * <pre>
+     *  file:/path/to/file.txt
+     *  classpath:com/mycompany/file.txt
+     * </pre>
+     *
+     * @return The file paths
+     */
+    String[] resources() default {};
+
+    /**
+     * Expresses the current operating system must be one in the given list.
+     *
+     * @return The os families
+     */
+    Family[] os() default {};
+
+    /**
+     * Expresses the current operating system must not be one in the given list.
+     *
+     * @return The os families
+     */
+    Family[] notOs() default {};
+
+    /**
+     * Expresses that the bean the given class should be available for the bean or configuration to load.
+     * Can be used in combination with {@link #beanProperty()} to specify the required bean property
+     *
+     * @return The configuration properties class
+     * @since 3.4.0
+     */
+    Class bean() default void.class;
+
+    /**
+     * Used in combination with {@link #bean()} to
+     * express that the given bean property should be
+     * set for the bean to load.
+     *
+     * @return The configuration property that should be set.
+     * @since 3.4.0
+     */
+    String beanProperty() default "";
+
+    /**
      * Used to express a required SDK version.
      */
     enum Sdk {
         JAVA,
         GROOVY,
+        KOTLIN,
         MICRONAUT
+    }
+
+    /**
+     * Used to express an operation system family.
+     */
+    enum Family {
+        LINUX, MAC_OS, WINDOWS, SOLARIS, OTHER
     }
 }

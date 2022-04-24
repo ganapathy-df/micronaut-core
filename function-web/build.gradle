@@ -1,11 +1,23 @@
-dependencies {
-    compileOnly project(":inject-java")
-    compile project(":function")
-    compile project(":router")
-    compile project(":http-server")
+plugins {
+    id "io.micronaut.build.internal.convention-library"
+}
 
-    testCompile project(":http-client")
-    testCompile project(":inject-groovy")
-    testCompile project(":inject-java")
-    testCompile project(":http-server-netty")
+internalSanityChecks {
+    expectedServiceCount.put('io.micronaut.inject.BeanDefinitionReference', 1)
+}           
+
+dependencies {
+    annotationProcessor project(":inject-java")
+    api project(":function")
+    api project(":router")
+    api project(":http-server")
+
+    testImplementation libs.managed.reactor
+
+    testImplementation project(":http-client")
+    testImplementation project(":inject")
+    testImplementation project(":http-server-netty")
+
+    testAnnotationProcessor project(":inject-java")
+    testCompileOnly project(":inject-groovy")
 }

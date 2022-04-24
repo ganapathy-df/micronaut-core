@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,15 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.ast.groovy.visitor;
 
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.util.CollectionUtils;
 import io.micronaut.inject.ast.ClassElement;
+import io.micronaut.inject.ast.ElementModifier;
 import io.micronaut.inject.ast.PropertyElement;
+import org.codehaus.groovy.ast.AnnotatedNode;
 
-import javax.annotation.Nullable;
+import java.util.Collections;
+import java.util.Set;
 
 /**
  * Implementation of {@link PropertyElement} for Groovy.
@@ -30,8 +33,7 @@ import javax.annotation.Nullable;
  * @since 1.0
  */
 @Internal
-class GroovyPropertyElement extends AbstractGroovyElement implements PropertyElement {
-    private final ClassElement type;
+abstract class GroovyPropertyElement extends AbstractGroovyElement implements PropertyElement {
     private final String name;
     private final boolean readOnly;
     private final Object nativeType;
@@ -40,26 +42,36 @@ class GroovyPropertyElement extends AbstractGroovyElement implements PropertyEle
     /**
      * Default constructor.
      *
+     * @param visitorContext The visitor context
      * @param declaringElement The declaring element
+     * @param annotatedNode    The annotated node
      * @param annotationMetadata the annotation metadata
-     * @param type the type
      * @param name the name
      * @param readOnly Whether it is read only
      * @param nativeType the native underlying type
      */
-    GroovyPropertyElement(GroovyClassElement declaringElement, AnnotationMetadata annotationMetadata, ClassElement type, String name, boolean readOnly, Object nativeType) {
-        super(annotationMetadata);
-        this.type = type;
+    GroovyPropertyElement(
+            GroovyVisitorContext visitorContext,
+            GroovyClassElement declaringElement,
+            AnnotatedNode annotatedNode,
+            AnnotationMetadata annotationMetadata,
+            String name,
+            boolean readOnly,
+            Object nativeType) {
+        super(visitorContext, annotatedNode, annotationMetadata);
         this.name = name;
         this.readOnly = readOnly;
         this.nativeType = nativeType;
         this.declaringElement = declaringElement;
     }
 
-    @Nullable
     @Override
-    public ClassElement getType() {
-        return type;
+    public Set<ElementModifier> getModifiers() {
+        if (isReadOnly()) {
+            return CollectionUtils.setOf(ElementModifier.FINAL, ElementModifier.PUBLIC);
+        } else {
+            return Collections.singleton(ElementModifier.PUBLIC);
+        }
     }
 
     @Override

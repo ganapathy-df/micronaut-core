@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.codec;
 
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.io.buffer.ByteBuffer;
 import io.micronaut.core.io.buffer.ByteBufferFactory;
 import io.micronaut.core.type.Argument;
@@ -52,12 +52,12 @@ public interface MediaTypeCodec {
     <T> T decode(Argument<T> type, InputStream inputStream) throws CodecException;
 
     /**
-     * Encode the given type from the given {@link InputStream}.
+     * Encode the given type to the given {@link OutputStream}.
      *
      * @param object       The object to encode
-     * @param outputStream The input stream
+     * @param outputStream The output stream
      * @param <T>          The generic type
-     * @throws CodecException When the result cannot be decoded
+     * @throws CodecException When the result cannot be encoded
      */
     <T> void encode(T object, OutputStream outputStream) throws CodecException;
 
@@ -67,7 +67,7 @@ public interface MediaTypeCodec {
      * @param object The object to encode
      * @param <T>    The generic type
      * @return The decoded result
-     * @throws CodecException When the result cannot be decoded
+     * @throws CodecException When the result cannot be encoded
      */
     <T> byte[] encode(T object) throws CodecException;
 
@@ -77,10 +77,56 @@ public interface MediaTypeCodec {
      * @param object    The object to encode
      * @param allocator The allocator
      * @param <T>       The generic type
+     * @param <B>       The buffer type
      * @return The decoded result
-     * @throws CodecException When the result cannot be decoded
+     * @throws CodecException When the result cannot be encoded
      */
-    <T> ByteBuffer encode(T object, ByteBufferFactory allocator) throws CodecException;
+    <T, B> ByteBuffer<B> encode(T object, ByteBufferFactory<?, B> allocator) throws CodecException;
+
+    /**
+     * Encode the given type to the given {@link OutputStream}.
+     *
+     * @param type         The type including any generics and/or metadata.
+     * @param object       The object to encode
+     * @param outputStream The output stream
+     * @param <T>          The generic type
+     * @throws CodecException When the result cannot be encoded
+     * @since 3.2.0
+     */
+    default <T> void encode(@NonNull Argument<T> type, @NonNull T object, @NonNull OutputStream outputStream) throws CodecException {
+        encode(object, outputStream);
+    }
+
+    /**
+     * Encode the given type returning the object as a byte[].
+     *
+     * @param type   The type including any generics and/or metadata
+     * @param object The object to encode
+     * @param <T>    The generic type
+     * @return The decoded result
+     * @throws CodecException When the result cannot be encoded
+     * @since 3.2.0
+     */
+    @NonNull
+    default <T> byte[] encode(@NonNull Argument<T> type, T object) throws CodecException {
+        return encode(object);
+    }
+
+    /**
+     * Encode the given type returning the object as a {@link ByteBuffer}.
+     *
+     * @param type      The type including any generics and/or metadata
+     * @param object    The object to encode
+     * @param allocator The allocator
+     * @param <T>       The generic type
+     * @param <B>       The buffer type
+     * @return The decoded result
+     * @throws CodecException When the result cannot be encoded
+     * @since 3.2.0
+     */
+    default @NonNull <T, B> ByteBuffer<B> encode(@NonNull Argument<T> type, T object, @NonNull ByteBufferFactory<?, B> allocator) throws CodecException {
+        return encode(object, allocator);
+    }
 
     /**
      * Decode the given type from the given {@link InputStream}.

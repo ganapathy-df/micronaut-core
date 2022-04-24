@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,12 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context;
 
 import io.micronaut.core.reflect.InstantiationUtils;
 
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
+import io.micronaut.core.type.Argument;
+import io.micronaut.inject.BeanDefinition;
+
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -31,6 +36,18 @@ import java.util.stream.Stream;
 public interface BeanLocator {
 
     /**
+     * Obtains a Bean for the given bean definition.
+     *
+     * @param definition  The bean type
+     * @param <T>       The bean type parameter
+     * @return An instanceof said bean
+     * @throws io.micronaut.context.exceptions.NonUniqueBeanException When multiple possible bean definitions exist
+     *                                                                for the given type
+     * @see io.micronaut.inject.qualifiers.Qualifiers
+     */
+    @NonNull <T> T getBean(@NonNull BeanDefinition<T> definition);
+
+    /**
      * Obtains a Bean for the given type and qualifier.
      *
      * @param beanType  The bean type
@@ -41,7 +58,73 @@ public interface BeanLocator {
      *                                                                for the given type
      * @see io.micronaut.inject.qualifiers.Qualifiers
      */
-    <T> T getBean(Class<T> beanType, Qualifier<T> qualifier);
+    @NonNull <T> T getBean(@NonNull Class<T> beanType, @Nullable Qualifier<T> qualifier);
+
+    /**
+     * Obtains a Bean for the given type and qualifier.
+     *
+     * @param beanType  The potentially parameterized bean type
+     * @param qualifier The qualifier
+     * @param <T>       The bean type parameter
+     * @return An instanceof said bean
+     * @throws io.micronaut.context.exceptions.NonUniqueBeanException When multiple possible bean definitions exist
+     *                                                                for the given type
+     * @see io.micronaut.inject.qualifiers.Qualifiers
+     * @since 3.0.0
+     */
+    default @NonNull <T> T getBean(@NonNull Argument<T> beanType, @Nullable Qualifier<T> qualifier) {
+        return getBean(
+                Objects.requireNonNull(beanType, "Bean type cannot be null").getType(),
+                qualifier
+        );
+    }
+
+    /**
+     * Obtains a Bean for the given type and qualifier.
+     *
+     * @param beanType  The potentially parameterized bean type
+     * @param <T>       The bean type parameter
+     * @return An instanceof said bean
+     * @throws io.micronaut.context.exceptions.NonUniqueBeanException When multiple possible bean definitions exist
+     *                                                                for the given type
+     * @see io.micronaut.inject.qualifiers.Qualifiers
+     * @since 3.0.0
+     */
+    default @NonNull <T> T getBean(@NonNull Argument<T> beanType) {
+        return getBean(
+                beanType,
+                null
+        );
+    }
+
+    /**
+     * Finds a Bean for the given type and qualifier.
+     *
+     * @param beanType  The bean type
+     * @param qualifier The qualifier
+     * @param <T>       The bean type parameter
+     * @return An instance of {@link Optional} that is either empty or containing the specified bean
+     * @throws io.micronaut.context.exceptions.NonUniqueBeanException When multiple possible bean definitions exist
+     *                                                                for the given type
+     * @see io.micronaut.inject.qualifiers.Qualifiers
+     * @since 3.0.0
+     */
+    @NonNull <T> Optional<T> findBean(@NonNull Argument<T> beanType, @Nullable Qualifier<T> qualifier);
+
+    /**
+     * Finds a Bean for the given type and qualifier.
+     *
+     * @param beanType  The bean type
+     * @param <T>       The bean type parameter
+     * @return An instance of {@link Optional} that is either empty or containing the specified bean
+     * @throws io.micronaut.context.exceptions.NonUniqueBeanException When multiple possible bean definitions exist
+     *                                                                for the given type
+     * @see io.micronaut.inject.qualifiers.Qualifiers
+     * @since 3.0.0
+     */
+    default @NonNull <T> Optional<T> findBean(@NonNull Argument<T> beanType) {
+        return findBean(beanType, null);
+    }
 
     /**
      * Finds a Bean for the given type and qualifier.
@@ -54,7 +137,7 @@ public interface BeanLocator {
      *                                                                for the given type
      * @see io.micronaut.inject.qualifiers.Qualifiers
      */
-    <T> Optional<T> findBean(Class<T> beanType, Qualifier<T> qualifier);
+    @NonNull <T> Optional<T> findBean(@NonNull Class<T> beanType, @Nullable Qualifier<T> qualifier);
 
     /**
      * Get all beans of the given type.
@@ -63,7 +146,7 @@ public interface BeanLocator {
      * @param <T>      The bean type parameter
      * @return The found beans
      */
-    <T> Collection<T> getBeansOfType(Class<T> beanType);
+    @NonNull <T> Collection<T> getBeansOfType(@NonNull Class<T> beanType);
 
     /**
      * Get all beans of the given type.
@@ -73,7 +156,34 @@ public interface BeanLocator {
      * @param <T>       The bean type parameter
      * @return The found beans
      */
-    <T> Collection<T> getBeansOfType(Class<T> beanType, Qualifier<T> qualifier);
+    @NonNull <T> Collection<T> getBeansOfType(@NonNull Class<T> beanType, @Nullable Qualifier<T> qualifier);
+
+    /**
+     * Get all beans of the given type.
+     *
+     * @param beanType The potenitally parameterized bean type
+     * @param <T>      The bean type parameter
+     * @return The found beans
+     * @since 3.0.0
+     */
+    default @NonNull <T> Collection<T> getBeansOfType(@NonNull Argument<T> beanType) {
+        Objects.requireNonNull(beanType, "Bean type cannot be null");
+        return getBeansOfType(beanType.getType());
+    }
+
+    /**
+     * Get all beans of the given type.
+     *
+     * @param beanType  The potenitally parameterized bean type
+     * @param qualifier The qualifier
+     * @param <T>       The bean type parameter
+     * @return The found beans
+     * @since 3.0.0
+     */
+    default @NonNull <T> Collection<T> getBeansOfType(@NonNull Argument<T> beanType, @Nullable Qualifier<T> qualifier) {
+        Objects.requireNonNull(beanType, "Bean type cannot be null");
+        return getBeansOfType(beanType.getType(), qualifier);
+    }
 
     /**
      * Obtain a stream of beans of the given type.
@@ -84,7 +194,41 @@ public interface BeanLocator {
      * @return A stream of instances
      * @see io.micronaut.inject.qualifiers.Qualifiers
      */
-    <T> Stream<T> streamOfType(Class<T> beanType, Qualifier<T> qualifier);
+    @NonNull <T> Stream<T> streamOfType(@NonNull Class<T> beanType, @Nullable Qualifier<T> qualifier);
+
+    /**
+     * Obtain a stream of beans of the given type.
+     *
+     * @param beanType  The potentially parameterized bean type
+     * @param qualifier The qualifier
+     * @param <T>       The bean concrete type
+     * @return A stream of instances
+     * @see io.micronaut.inject.qualifiers.Qualifiers
+     * @since 3.0.0
+     */
+    default @NonNull <T> Stream<T> streamOfType(@NonNull Argument<T> beanType, @Nullable Qualifier<T> qualifier) {
+        return streamOfType(
+                Objects.requireNonNull(beanType, "Bean type cannot be null").getType(),
+                qualifier
+        );
+    }
+
+    /**
+     * Obtain a stream of beans of the given type.
+     *
+     * @param beanType  The potentially parameterized bean type
+     * @param <T>       The bean concrete type
+     * @return A stream of instances
+     * @see io.micronaut.inject.qualifiers.Qualifiers
+     * @since 3.0.0
+     */
+    default @NonNull <T> Stream<T> streamOfType(@NonNull Argument<T> beanType) {
+        return streamOfType(
+                Objects.requireNonNull(beanType, "Bean type cannot be null"),
+                null
+        );
+    }
+
 
     /**
      * Resolves the proxy target for a given bean type. If the bean has no proxy then the original bean is returned.
@@ -94,7 +238,20 @@ public interface BeanLocator {
      * @param <T>       The generic type
      * @return The proxied instance
      */
-    <T> T getProxyTargetBean(Class<T> beanType, Qualifier<T> qualifier);
+    @NonNull <T> T getProxyTargetBean(@NonNull Class<T> beanType, @Nullable Qualifier<T> qualifier);
+
+    /**
+     * Resolves the proxy target for a given bean type. If the bean has no proxy then the original bean is returned.
+     *
+     * @param beanType  The bean type
+     * @param qualifier The bean qualifier
+     * @param <T>       The generic type
+     * @return The proxied instance
+     * @since 3.0.0
+     */
+    default @NonNull <T> T getProxyTargetBean(@NonNull Argument<T> beanType, @Nullable Qualifier<T> qualifier) {
+        return getProxyTargetBean(Objects.requireNonNull(beanType, "Bean type cannot be null").getType(), qualifier);
+    }
 
     /**
      * Obtain a stream of beans of the given type.
@@ -103,7 +260,7 @@ public interface BeanLocator {
      * @param <T>      The bean concrete type
      * @return A stream
      */
-    default <T> Stream<T> streamOfType(Class<T> beanType) {
+    default @NonNull <T> Stream<T> streamOfType(@NonNull Class<T> beanType) {
         return streamOfType(beanType, null);
     }
 
@@ -115,8 +272,9 @@ public interface BeanLocator {
      * @return An instanceof said bean
      * @throws io.micronaut.context.exceptions.NonUniqueBeanException When multiple possible bean definitions exist
      *                                                                for the given type
+     * @throws io.micronaut.context.exceptions.NoSuchBeanException If the bean doesn't exist
      */
-    default <T> T getBean(Class<T> beanType) {
+    default @NonNull <T> T getBean(@NonNull Class<T> beanType) {
         return getBean(beanType, null);
     }
 
@@ -129,7 +287,7 @@ public interface BeanLocator {
      * @throws io.micronaut.context.exceptions.NonUniqueBeanException When multiple possible bean definitions exist
      *                                                                for the given type
      */
-    default <T> Optional<T> findBean(Class<T> beanType) {
+    default @NonNull <T> Optional<T> findBean(@NonNull Class<T> beanType) {
         return findBean(beanType, null);
     }
 
@@ -143,7 +301,7 @@ public interface BeanLocator {
      * @throws io.micronaut.context.exceptions.NonUniqueBeanException When multiple possible bean definitions exist
      *                                                                for the given type
      */
-    default <T> Optional<T> findOrInstantiateBean(Class<T> beanType) {
+    default @NonNull <T> Optional<T> findOrInstantiateBean(@NonNull Class<T> beanType) {
         Optional<T> bean = findBean(beanType, null);
         if (bean.isPresent()) {
             return bean;

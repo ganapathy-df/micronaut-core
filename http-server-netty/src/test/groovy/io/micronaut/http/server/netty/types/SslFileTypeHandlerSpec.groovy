@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,15 +33,21 @@ class SslFileTypeHandlerSpec extends AbstractMicronautSpec {
 
     void "test returning a file from a controller"() {
         when:
-        def response = rxClient.exchange('/test/html', String).blockingFirst()
+        def response = rxClient.exchange('/test/html', String).blockFirst()
 
         then:
         response.code() == HttpStatus.OK.code
         response.body() == "<html><head></head><body>HTML Page</body></html>"
     }
 
+    @Override
     Map<String, Object> getConfiguration() {
-        super.getConfiguration() << ['micronaut.ssl.enabled': true, 'micronaut.ssl.buildSelfSigned': true]
+        super.getConfiguration() << [
+                'micronaut.ssl.enabled': true,
+                'micronaut.server.ssl.buildSelfSigned': true,
+                'micronaut.server.ssl.port': -1,
+                'micronaut.http.client.ssl.insecureTrustAllCertificates': true
+        ]
     }
 
     @Controller('/test')

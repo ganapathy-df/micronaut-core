@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,40 +13,53 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.resource;
 
-import io.micronaut.context.annotation.Bean;
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.context.annotation.BootstrapContextCompatible;
 import io.micronaut.context.annotation.Factory;
+import io.micronaut.context.env.Environment;
+import io.micronaut.core.annotation.Indexed;
 import io.micronaut.core.io.ResourceLoader;
 import io.micronaut.core.io.ResourceResolver;
 import io.micronaut.core.io.file.DefaultFileSystemResourceLoader;
 import io.micronaut.core.io.file.FileSystemResourceLoader;
 import io.micronaut.core.io.scan.ClassPathResourceLoader;
 import io.micronaut.core.io.scan.DefaultClassPathResourceLoader;
+import jakarta.inject.Singleton;
 
-import javax.inject.Singleton;
+import java.util.List;
 
 /**
  * Creates beans for {@link ResourceLoader}s to handle static resource requests. Registers a resource resolver that
  * uses those beans.
  *
  * @author James Kleeh
+ * @author graemerocher
  * @since 1.0
  */
 @Factory
 @BootstrapContextCompatible
 public class ResourceLoaderFactory {
 
+    private final ClassLoader classLoader;
+
+    /**
+     * The resource factory.
+     *
+     * @param environment The environment
+     */
+    public ResourceLoaderFactory(Environment environment) {
+        this.classLoader = environment.getClassLoader();
+    }
+
     /**
      * @return The class path resource loader
      */
     @Singleton
-    @Bean
     @BootstrapContextCompatible
-    ClassPathResourceLoader getClassPathResourceLoader() {
-        return new DefaultClassPathResourceLoader(ResourceLoaderFactory.class.getClassLoader());
+    protected @NonNull ClassPathResourceLoader getClassPathResourceLoader() {
+        return new DefaultClassPathResourceLoader(classLoader);
     }
 
     /**
@@ -54,7 +67,7 @@ public class ResourceLoaderFactory {
      */
     @Singleton
     @BootstrapContextCompatible
-    FileSystemResourceLoader fileSystemResourceLoader() {
+    protected @NonNull FileSystemResourceLoader fileSystemResourceLoader() {
         return new DefaultFileSystemResourceLoader();
     }
 
@@ -64,7 +77,8 @@ public class ResourceLoaderFactory {
      */
     @Singleton
     @BootstrapContextCompatible
-    ResourceResolver resourceResolver(ResourceLoader[] resourceLoaders) {
+    @Indexed(ResourceResolver.class)
+    protected @NonNull ResourceResolver resourceResolver(@NonNull List<ResourceLoader> resourceLoaders) {
         return new ResourceResolver(resourceLoaders);
     }
 }

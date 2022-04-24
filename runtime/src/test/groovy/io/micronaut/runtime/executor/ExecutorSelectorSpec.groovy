@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,18 +15,20 @@
  */
 package io.micronaut.runtime.executor
 
-import grails.gorm.transactions.Transactional
-import io.reactivex.Single
 import io.micronaut.context.ApplicationContext
 import io.micronaut.context.annotation.Executable
+import io.micronaut.core.annotation.Blocking
 import io.micronaut.core.annotation.NonBlocking
 import io.micronaut.inject.ExecutableMethod
 import io.micronaut.scheduling.executor.ExecutorSelector
+import io.micronaut.scheduling.executor.ThreadSelection
+import jakarta.inject.Singleton
+import reactor.core.publisher.Mono
 import spock.lang.Specification
 import spock.lang.Unroll
 
-import javax.inject.Singleton
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
 import java.util.concurrent.ExecutorService
 
 /**
@@ -42,7 +44,7 @@ class ExecutorSelectorSpec extends Specification {
         ExecutorSelector selector = applicationContext.getBean(ExecutorSelector)
         Optional<ExecutableMethod> method = applicationContext.findExecutableMethod(MyService, methodName)
 
-        Optional<ExecutorService> executorService = selector.select(method.get())
+        Optional<ExecutorService> executorService = selector.select(method.get(), ThreadSelection.AUTO)
 
         expect:
         executorService.isPresent() == present
@@ -51,11 +53,13 @@ class ExecutorSelectorSpec extends Specification {
         applicationContext.stop()
 
         where:
-        methodName              | present
-        "someMethod"            | true
-        "someNonBlockingMethod" | false
-        "someReactiveMethod"    | false
-        "someFutureMethod"      | false
+        methodName                   | present
+        "someMethod"                 | true
+        "someBlockingReactiveMethod" | true
+        "someNonBlockingMethod"      | false
+        "someReactiveMethod"         | false
+        "someFutureMethod"           | false
+        "someStageMethod"            | false
     }
 
 
@@ -65,7 +69,6 @@ class ExecutorSelectorSpec extends Specification {
 @Executable
 class MyService {
 
-    @Transactional
     void someMethod() {
 
     }
@@ -75,8 +78,13 @@ class MyService {
 
     }
 
-    Single someReactiveMethod() {}
+    Mono someReactiveMethod() {}
+
+    @Blocking
+    Mono someBlockingReactiveMethod() {}
 
     CompletableFuture someFutureMethod() {}
+
+    CompletionStage someStageMethod() {}
 }
 

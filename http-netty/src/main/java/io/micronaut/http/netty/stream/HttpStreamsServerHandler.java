@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.netty.stream;
 
 import io.micronaut.core.annotation.Internal;
@@ -23,6 +22,7 @@ import io.micronaut.http.netty.reactive.HandlerSubscriber;
 import io.netty.channel.ChannelHandler;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPipeline;
+import io.netty.channel.ChannelPromise;
 import io.netty.handler.codec.http.*;
 import io.netty.handler.codec.http.websocketx.WebSocketFrame;
 import io.netty.handler.codec.http.websocketx.WebSocketServerHandshaker;
@@ -59,7 +59,8 @@ import java.util.NoSuchElementException;
 public class HttpStreamsServerHandler extends HttpStreamsHandler<HttpRequest, HttpResponse> {
 
     private HttpRequest lastRequest = null;
-    private Outgoing webSocketResponse = null;
+    private HttpResponse webSocketResponse = null;
+    private ChannelPromise webSocketResponseChannelPromise = null;
     private int inFlight = 0;
     private boolean continueExpected = true;
     private boolean sendContinue = false;
@@ -90,9 +91,20 @@ public class HttpStreamsServerHandler extends HttpStreamsHandler<HttpRequest, Ht
 
     @Override
     protected boolean hasBody(HttpRequest request) {
+        // if there's a decoder failure (e.g. invalid header), don't expect the body to come in
+        if (request.decoderResult().isFailure()) {
+            return false;
+        }
         // Http requests don't have a body if they define 0 content length, or no content length and no transfer
         // encoding
-        return HttpUtil.getContentLength(request, 0) != 0 || HttpUtil.isTransferEncodingChunked(request);
+        int contentLength;
+        try {
+            contentLength = HttpUtil.getContentLength(request, 0);
+        } catch (NumberFormatException e) {
+            // handle invalid content length, https://github.com/netty/netty/issues/12113
+            contentLength = 0;
+        }
+        return contentLength != 0 || HttpUtil.isTransferEncodingChunked(request);
     }
 
     @Override
@@ -101,7 +113,7 @@ public class HttpStreamsServerHandler extends HttpStreamsHandler<HttpRequest, Ht
     }
 
     @Override
-    protected HttpRequest createStreamedMessage(HttpRequest httpRequest, Publisher<HttpContent> stream) {
+    protected HttpRequest createStreamedMessage(HttpRequest httpRequest, Publisher<? extends HttpContent> stream) {
         return new DelegateStreamedHttpRequest(httpRequest, stream);
     }
 
@@ -142,40 +154,39 @@ public class HttpStreamsServerHandler extends HttpStreamsHandler<HttpRequest, Ht
     }
 
     @Override
-    protected void unbufferedWrite(ChannelHandlerContext ctx, HttpStreamsHandler<HttpRequest, HttpResponse>.Outgoing out) {
+    protected void unbufferedWrite(ChannelHandlerContext ctx, HttpResponse message, ChannelPromise promise) {
 
-        if (out.message instanceof WebSocketHttpResponse) {
+        if (message instanceof WebSocketHttpResponse) {
             if ((lastRequest instanceof FullHttpRequest) || !hasBody(lastRequest)) {
-                handleWebSocketResponse(ctx, out);
+                handleWebSocketResponse(ctx, message, promise);
             } else {
                 // If the response has a streamed body, then we can't send the WebSocket response until we've received
                 // the body.
-                webSocketResponse = out;
+                webSocketResponse = message;
+                webSocketResponseChannelPromise = promise;
             }
         } else {
-            String connection = out.message.headers().get(HttpHeaderNames.CONNECTION);
             if (lastRequest.protocolVersion().isKeepAliveDefault()) {
-                if ("close".equalsIgnoreCase(connection)) {
+                if (message.headers().contains(HttpHeaderNames.CONNECTION, "close", true)) {
                     close = true;
                 }
             } else {
-                if (!"keep-alive".equalsIgnoreCase(connection)) {
+                if (!message.headers().contains(HttpHeaderNames.CONNECTION, "keep-alive", true)) {
                     close = true;
                 }
             }
             if (inFlight == 1 && continueExpected) {
-                HttpUtil.setKeepAlive(out.message, false);
+                HttpUtil.setKeepAlive(message, false);
                 close = true;
                 continueExpected = false;
             }
             // According to RFC 7230 a server MUST NOT send a Content-Length or a Transfer-Encoding when the status
             // code is 1xx or 204, also a status code 304 may not have a Content-Length or Transfer-Encoding set.
-            if (!HttpUtil.isContentLengthSet(out.message) && !HttpUtil.isTransferEncodingChunked(out.message)
-                && canHaveBody(out.message)) {
-                HttpUtil.setKeepAlive(out.message, false);
+            if (!HttpUtil.isContentLengthSet(message) && !HttpUtil.isTransferEncodingChunked(message) && canHaveBody(message)) {
+                HttpUtil.setKeepAlive(message, false);
                 close = true;
             }
-            super.unbufferedWrite(ctx, out);
+            super.unbufferedWrite(ctx, message, promise);
         }
     }
 
@@ -196,13 +207,14 @@ public class HttpStreamsServerHandler extends HttpStreamsHandler<HttpRequest, Ht
     @Override
     protected void consumedInMessage(ChannelHandlerContext ctx) {
         if (webSocketResponse != null) {
-            handleWebSocketResponse(ctx, webSocketResponse);
+            handleWebSocketResponse(ctx, webSocketResponse, webSocketResponseChannelPromise);
             webSocketResponse = null;
+            webSocketResponseChannelPromise = null;
         }
     }
 
-    private void handleWebSocketResponse(ChannelHandlerContext ctx, Outgoing out) {
-        WebSocketHttpResponse response = (WebSocketHttpResponse) out.message;
+    private void handleWebSocketResponse(ChannelHandlerContext ctx, HttpResponse message, ChannelPromise promise) {
+        WebSocketHttpResponse response = (WebSocketHttpResponse) message;
         WebSocketServerHandshaker handshaker = response.handshakerFactory().newHandshaker(lastRequest);
 
         if (handshaker == null) {
@@ -211,7 +223,7 @@ public class HttpStreamsServerHandler extends HttpStreamsHandler<HttpRequest, Ht
                 HttpResponseStatus.UPGRADE_REQUIRED);
             res.headers().set(HttpHeaderNames.SEC_WEBSOCKET_VERSION, WebSocketVersion.V13.toHttpHeaderValue());
             HttpUtil.setContentLength(res, 0);
-            super.unbufferedWrite(ctx, new Outgoing(res, out.promise));
+            super.unbufferedWrite(ctx, message, promise);
             response.subscribe(new CancelledSubscriber<>());
         } else {
             // First, insert new handlers in the chain after us for handling the websocket
@@ -246,6 +258,11 @@ public class HttpStreamsServerHandler extends HttpStreamsHandler<HttpRequest, Ht
                 sendContinue = true;
             }
         }
+    }
+
+    @Override
+    protected final boolean isClient() {
+        return false;
     }
 
     @Override

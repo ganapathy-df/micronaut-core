@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -33,10 +33,13 @@ class FieldDependencyMissingFailureSpec extends Specification {
 
         then:"The implementation is injected"
         def e = thrown(DependencyInjectionException)
-        e.message.normalize() == '''\
+        e.message.normalize().contains('''\
 Failed to inject value for field [a] of class: io.micronaut.inject.failures.fielddependencymissing.B
+''')
+        e.message.normalize().contains('''Path Taken: new B() --> B.a''')
 
-Path Taken: B.a'''
+        cleanup:
+        context.close()
     }
 }
 

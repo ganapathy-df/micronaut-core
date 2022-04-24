@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,31 +13,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.io
 
 import io.micronaut.core.io.file.DefaultFileSystemResourceLoader
 import io.micronaut.core.io.file.FileSystemResourceLoader
 import spock.lang.Specification
-
-import java.nio.file.Paths
+import spock.lang.Unroll
 
 class FileSystemResourceLoaderSpec extends Specification {
 
-    void "test resolving a resource"() {
+    @Unroll
+    void "test resolving a resource for #base and #resource"() {
         given:
-        FileSystemResourceLoader loader = new DefaultFileSystemResourceLoader(base)
+        DefaultFileSystemResourceLoader loader = new DefaultFileSystemResourceLoader(base)
 
         expect:
-        !loader.getResource(resource).isPresent()
+        loader.getResource(resource).isPresent() == presentViaResolver
+        new File(loader.normalize(base), loader.normalize(resource)).exists() == presentOnDisk
 
         where:
-        base        | resource
-        "."         | "src"
-        "."         | "file:src/main"
-        "src"       | "main"
-        "file:src"  | "main"
-        "file:src"  | "file:main"
-        "file:src"  | "file:/main"
+        base                      | resource                   | presentViaResolver   | presentOnDisk
+        "."                       | "src"                      | false                | true
+        "."                       | "file:src/main"            | false                | true
+        "src"                     | "main"                     | false                | true
+        "file:src"                | "main"                     | false                | true
+        "file:src"                | "file:main"                | false                | true
+        "file:src"                | "file:/main"               | false                | true
+        "src/test/resources"      | "foo/bar.txt"              | true                 | true
+        "file:src/test/resources" | "../resources/foo/bar.txt" | true                 | true
+        "file:src/test/resources" | "../../../build.gradle"    | false                | true
     }
 }

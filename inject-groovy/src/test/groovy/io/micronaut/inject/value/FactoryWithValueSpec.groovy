@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,8 +16,8 @@
 package io.micronaut.inject.value
 
 import io.micronaut.context.ApplicationContext
-import io.micronaut.context.annotation.Bean
 import io.micronaut.context.annotation.Factory
+import io.micronaut.context.annotation.Prototype
 import io.micronaut.context.annotation.Value
 import spock.lang.Specification
 
@@ -58,12 +58,13 @@ class FactoryWithValueSpec extends Specification {
 
     @Factory
     static class MyFactory {
-        @Bean
+
+        @Prototype
         A newA(@Value('${foo.bar}') int port) {
             return new A(port)
         }
 
-        @Bean
+        @Prototype
         B newB(A a, @Value('${foo.bar}') int port) {
             return new B(a, port)
         }

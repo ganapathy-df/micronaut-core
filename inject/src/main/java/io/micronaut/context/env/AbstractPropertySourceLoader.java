@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context.env;
 
 import io.micronaut.context.exceptions.ConfigurationException;
@@ -39,7 +38,6 @@ import java.util.Set;
  */
 public abstract class AbstractPropertySourceLoader implements PropertySourceLoader, Toggleable, Ordered {
 
-
     /**
      * Default position for the property source loader.
      */
@@ -53,37 +51,45 @@ public abstract class AbstractPropertySourceLoader implements PropertySourceLoad
     }
 
     @Override
-    public Optional<PropertySource> load(String resourceName, ResourceLoader resourceLoader, String environmentName) {
+    public Optional<PropertySource> load(String resourceName, ResourceLoader resourceLoader) {
+        return load(resourceLoader, resourceName, getOrder());
+    }
+
+    @Override
+    public Optional<PropertySource> loadEnv(String resourceName, ResourceLoader resourceLoader, ActiveEnvironment activeEnvironment) {
+        return load(resourceLoader, resourceName + "-" + activeEnvironment.getName(), this.getOrder() + 1 + activeEnvironment.getPriority());
+    }
+
+    private Optional<PropertySource> load(ResourceLoader resourceLoader, String fileName, int order) {
         if (isEnabled()) {
             Set<String> extensions = getExtensions();
             for (String ext : extensions) {
-                String fileName = resourceName;
-                if (environmentName != null) {
-                    fileName += "-" + environmentName;
-                }
-                String qualifiedName = fileName;
-                fileName += "." + ext;
-                Map<String, Object> finalMap = loadProperties(resourceLoader, qualifiedName, fileName);
+                String fileExt = fileName +  "." + ext;
+                Map<String, Object> finalMap = loadProperties(resourceLoader, fileName, fileExt);
 
-                int order = this.getOrder();
-                if (environmentName != null) {
-                    order++; // higher precedence than the default
-                }
                 if (!finalMap.isEmpty()) {
-                    int finalOrder = order;
-                    MapPropertySource newPropertySource = new MapPropertySource(qualifiedName, finalMap) {
-                        @Override
-                        public int getOrder() {
-
-                            return finalOrder;
-                        }
-                    };
-                    return Optional.of(newPropertySource);
+                    return Optional.of(createPropertySource(fileName, finalMap, order));
                 }
             }
         }
 
         return Optional.empty();
+    }
+
+    /**
+     *
+     * @param name The name of the property source
+     * @param map  The map
+     * @param order The order of the property source
+     * @return property source
+     */
+    protected MapPropertySource createPropertySource(String name, Map<String, Object> map, int order) {
+        return new MapPropertySource(name, map) {
+                            @Override
+                            public int getOrder() {
+                                return order;
+                            }
+                        };
     }
 
     private Map<String, Object> loadProperties(ResourceLoader resourceLoader, String qualifiedName, String fileName) {

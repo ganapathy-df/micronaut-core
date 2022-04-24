@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,7 +15,8 @@
  */
 package io.micronaut.aop.simple;
 
-import javax.inject.Singleton;
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Singleton;
 import java.util.Collections;
 import java.util.List;
 
@@ -27,10 +28,20 @@ import java.util.List;
 public class SimpleClass<A extends CharSequence> {
 
     private Bar bar;
+    private boolean postConstructInvoked;
 
     public SimpleClass(Bar bar) {
         this.bar = bar;
         assert bar != null;
+    }
+
+    @PostConstruct
+    void onCreate() {
+        this.postConstructInvoked = true;
+    }
+
+    public boolean isPostConstructInvoked() {
+        return postConstructInvoked;
     }
 
     @Mutating("name")
@@ -176,5 +187,10 @@ public class SimpleClass<A extends CharSequence> {
     @Mutating("name")
     A testGenericsFromType(A name, int age) {
         return (A) ("Name is " + name);
+    }
+
+    @Invalid
+    void invalidInterceptor() {
+
     }
 }

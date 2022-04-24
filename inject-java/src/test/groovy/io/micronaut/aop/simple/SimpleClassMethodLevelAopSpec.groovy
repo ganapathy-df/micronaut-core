@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ class SimpleClassMethodLevelAopSpec extends Specification {
 
         expect:
         args.isEmpty() ? foo."$method"() : foo."$method"(*args) == result
+        foo.postConstructInvoked
 
         where:
         method                        | args                   | result
@@ -89,7 +90,18 @@ class SimpleClassMethodLevelAopSpec extends Specification {
         // should not be a reflection based method
         !beanContext.findExecutableMethod(SimpleClass, "test", String).get().getClass().getName().contains("Reflection")
         foo.test("test") == "Name is changed"
+    }
 
+    void "test modifying the interceptor parameters is not supported"() {
+        given:
+        BeanContext beanContext = new DefaultBeanContext().start()
+        SimpleClass foo = beanContext.getBean(SimpleClass)
+
+        when: "the interceptor is called"
+        foo.invalidInterceptor()
+
+        then:
+        thrown(UnsupportedOperationException)
     }
 
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,17 +15,16 @@
  */
 package io.micronaut.inject.executable
 
-import io.micronaut.context.AbstractExecutableMethod
+
 import io.micronaut.context.ApplicationContext
 import io.micronaut.context.DefaultApplicationContext
-import io.micronaut.inject.ExecutionHandle
-import io.micronaut.inject.ExecutableMethod
-import io.micronaut.inject.MethodExecutionHandle
 import io.micronaut.context.annotation.Executable
+import io.micronaut.inject.ExecutableMethod
+import io.micronaut.inject.ExecutionHandle
+import io.micronaut.inject.MethodExecutionHandle
+import jakarta.inject.Inject
+import jakarta.inject.Singleton
 import spock.lang.Specification
-
-import javax.inject.Inject
-import javax.inject.Singleton
 /**
  * @author Graeme Rocher
  * @since 1.0
@@ -49,14 +48,13 @@ class ExecutableSpec extends Specification {
         then:
         executionHandle.returnType.type == String
         executionHandle.invoke(1L) == "1 - The Stand"
-        executableMethod.getClass().getSuperclass() == AbstractExecutableMethod
 
         when:
         executionHandle.invoke("bad")
 
         then:
         def e = thrown(IllegalArgumentException)
-        e.message == 'Invalid type [java.lang.String] for argument [Long id] of method: show'
+        e.message == 'Invalid type [java.lang.String] for argument [Long id] of method: String show(Long id)'
 
     }
 

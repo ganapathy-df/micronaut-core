@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,9 +15,15 @@
  */
 package io.micronaut.http.server.netty.java;
 
-import io.micronaut.http.*;
+import io.micronaut.http.HttpMessage;
+import io.micronaut.http.HttpMethod;
+import io.micronaut.http.HttpResponse;
+import io.micronaut.http.HttpStatus;
+import io.micronaut.http.MediaType;
 import io.micronaut.http.annotation.Controller;
 import io.micronaut.http.annotation.Get;
+
+import java.util.Optional;
 
 /**
  * @author Graeme Rocher
@@ -87,5 +93,14 @@ public class ResponseController {
     @Get("/custom-headers")
     public HttpResponse customHeaders() {
        return HttpResponse.ok("abc").contentType("text/plain").contentLength(7);
+    }
+
+    @Get("/optional-response/{empty}")
+    public Optional<HttpResponse> optionalResponse(Boolean empty) {
+        if (empty) {
+            return Optional.empty();
+        } else {
+            return Optional.of(HttpResponse.ok());
+        }
     }
 }

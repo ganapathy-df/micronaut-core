@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,10 +18,11 @@ package io.micronaut.inject.constructor
 import io.micronaut.context.BeanContext
 import io.micronaut.context.DefaultBeanContext
 import io.micronaut.context.exceptions.DependencyInjectionException
+import io.micronaut.core.annotation.Nullable
 import spock.lang.Specification
 
-import javax.annotation.Nullable
-import javax.inject.Inject
+import jakarta.inject.Inject
+import jakarta.inject.Provider
 
 class ConstructorNullableSpec extends Specification {
 
@@ -36,6 +37,25 @@ class ConstructorNullableSpec extends Specification {
 
         then:"The implementation is not injected, but null is"
         b.a == null
+
+        cleanup:
+        context.close()
+    }
+
+    void "test nullable provider injection with constructor"() {
+        given:
+        BeanContext context = new DefaultBeanContext()
+        context.start()
+
+        when:"A bean is obtained that has a constructor with @Inject"
+        D d =  context.getBean(D)
+
+        then:"The implementation is not injected, but null is"
+        noExceptionThrown()
+        d.@a == null
+
+        cleanup:
+        context.close()
     }
 
     void "test normal injection still fails"() {
@@ -48,6 +68,9 @@ class ConstructorNullableSpec extends Specification {
 
         then:"The bean is not found"
         thrown(DependencyInjectionException)
+
+        cleanup:
+        context.close()
     }
 
     static interface A {
@@ -80,5 +103,19 @@ class ConstructorNullableSpec extends Specification {
             return this.a
         }
 
+    }
+
+    static class D {
+
+        private final Provider<A> a
+
+        @Inject
+        D(@Nullable Provider<A> a) {
+            this.a = a
+        }
+
+        A getA() {
+            return this.a != null ? this.a.get() : null;
+        }
     }
 }

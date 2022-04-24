@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,13 @@ package io.micronaut.http.server.netty.java
 
 import io.micronaut.context.annotation.Requires
 import io.micronaut.http.HttpRequest
+import io.micronaut.http.HttpResponse
 import io.micronaut.http.HttpStatus
 import io.micronaut.http.annotation.Controller
 import io.micronaut.http.annotation.Get
+import io.micronaut.http.client.exceptions.HttpClientResponseException
 import io.micronaut.http.server.netty.AbstractMicronautSpec
+import reactor.core.publisher.Flux
 import spock.lang.Unroll
 
 import javax.annotation.Nullable
@@ -53,10 +56,15 @@ class ParameterBindingSpec extends AbstractMicronautSpec {
     @Unroll
     void "test bind HTTP parameters for URI #uri"() {
         given:
-        def response = rxClient.exchange(uri, String)
-                .onErrorReturn({t -> t.response}).blockingFirst()
-        def status = response.status
-        def body = null
+        HttpResponse<String> response = Flux.from(rxClient.exchange(uri, String))
+                .onErrorResume(t -> {
+                    if (t instanceof HttpClientResponseException) {
+                        return Flux.just(((HttpClientResponseException) t).response)
+                    }
+                    throw t
+                }).blockFirst()
+        HttpStatus status = response.status
+        String body = null
         if (status == HttpStatus.OK) {
             body = response.body()
         }

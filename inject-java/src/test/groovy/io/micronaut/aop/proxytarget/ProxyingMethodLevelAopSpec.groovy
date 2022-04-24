@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,9 @@ class ProxyingMethodLevelAopSpec extends Specification {
 
         expect:
         args.isEmpty() ? foo."$method"() : foo."$method"(*args) == result
+        foo.lifeCycleCount == 0
+        foo instanceof InterceptedProxy
+        foo.interceptedTarget().lifeCycleCount == 1
 
         where:
         method                        | args                   | result

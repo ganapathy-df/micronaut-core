@@ -1,53 +1,31 @@
-apply plugin: 'com.github.johnrengelman.shadow'
+plugins {
+    id "io.micronaut.build.internal.convention-core-library"
+}
+
+internalSanityChecks {
+    expectedServiceCount.put('io.micronaut.inject.BeanDefinitionReference', 14)
+    expectedServiceCount.put('io.micronaut.inject.BeanConfiguration', 1)
+}           
 
 dependencies {
-    shadowCompile project(":runtime")
-    compile project(":runtime")
-    shadowCompile project(":http")
-    compile project(":http")
+    annotationProcessor project(":inject-java")
+    api project(":runtime")
+    api project(":http")
 
-    compileOnly "com.github.ben-manes.caffeine:caffeine:$caffeineVersion"
-    compileOnly project(":inject-java")
     compileOnly project(":http-server")
+    compileOnly project(":http-server-netty")
 
-    testCompile project(":inject-groovy")
-    testCompile project(":inject-java")
-    testCompile project(":http-server-netty")
-    testCompile project(":http-client")
-}
-shadowJar {
-    dependencies {
-        for(dep in project.configurations.shadowCompile.dependencies) {
-            if(dep instanceof ProjectDependency) {
-                exclude(project(":$dep.name"))
-            }
-            else if(dep instanceof ExternalDependency) {
-                exclude(dependency("$dep.group:$dep.name:.*"))
-            }
-        }
-        exclude(project(":core"))
-        exclude(project(":http"))
-        exclude(project(":inject"))
-        exclude(project(":runtime"))
-        exclude(dependency('javax.annotation:.*:.*'))
-        exclude(dependency("javax.validation:.*:.*"))
-        exclude(dependency("io.reactivex.rxjava2:.*:.*"))
-        exclude(dependency("com.fasterxml.*:.*:.*"))
-        exclude(dependency(dependencyVersion("slf4j")))
-        exclude(dependency(dependencyVersion("snakeyaml")))
-        exclude(dependency(group: 'javax.inject', name: 'javax.inject', version: '1'))
-        exclude(dependency('org.ow2.asm:.*:.*'))
-        exclude(dependency('org.reactivestreams:.*:.*'))
-        exclude(dependency('com.google.code.findbugs:.*:.*'))
-        exclude(dependency('com.github.ben-manes.caffeine:.*:.*'))
-    }
+    implementation libs.managed.reactor
 
-    relocate "org.objectweb.asm", "io.micronaut.asm"
-    relocate "com.github.benmanes.caffeine", "io.micronaut.caffeine"
+    testAnnotationProcessor project(":inject-java")
+    testCompileOnly project(":inject-groovy")
+    testImplementation project(":context")
+    testImplementation project(":inject")
+    testImplementation project(":http-netty")
+    testImplementation project(":http-server-netty")
+    testImplementation project(":http-client")
+    testImplementation libs.managed.netty.codec.http
+}
 
-}
-tasks.withType(com.github.jengelman.gradle.plugins.shadow.tasks.ConfigureShadowRelocation) { t ->
-    t.enabled = false
-}
 
 //compileTestGroovy.groovyOptions.forkOptions.jvmArgs = ['-Xdebug', '-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=5005']

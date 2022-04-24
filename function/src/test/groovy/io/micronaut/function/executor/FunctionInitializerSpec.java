@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,15 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.function.executor;
 
-import org.junit.Assert;
-import org.junit.Test;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import jakarta.annotation.PostConstruct;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.Test;
+
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * @author Graeme Rocher
@@ -31,7 +33,10 @@ public class FunctionInitializerSpec   {
 
     @Test
     public void testFunctionInitializer() {
-        Assert.assertEquals(new MathFunction().round(1.6f) , 2);
+        MathFunction mathFunction = new MathFunction();
+        Assertions.assertEquals(1, MathFunction.initCount.get());
+        Assertions.assertEquals(1, MathFunction.injectCount.get());
+        Assertions.assertEquals(2, mathFunction.round(1.6f));
     }
 
     @Singleton
@@ -41,9 +46,24 @@ public class FunctionInitializerSpec   {
         }
     }
 
+    @Singleton
     public static class MathFunction extends FunctionInitializer {
+        static AtomicInteger initCount = new AtomicInteger(0);
+        static AtomicInteger injectCount = new AtomicInteger(0);
+
+
+        private MathService mathService;
+
         @Inject
-        MathService mathService;
+        public void setMathService(MathService mathService) {
+            this.mathService = mathService;
+            injectCount.incrementAndGet();
+        }
+
+        @PostConstruct
+        public void init() {
+            initCount.incrementAndGet();
+        }
 
         int round(float input) {
             return mathService.round(input);

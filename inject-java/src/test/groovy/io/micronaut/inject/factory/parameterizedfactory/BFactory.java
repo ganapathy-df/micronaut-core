@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,10 +18,11 @@ package io.micronaut.inject.factory.parameterizedfactory;
 import io.micronaut.context.annotation.Parameter;
 import io.micronaut.context.annotation.Bean;
 import io.micronaut.context.annotation.Factory;
+import io.micronaut.context.annotation.Prototype;
 
-import javax.annotation.PostConstruct;
-import javax.inject.Inject;
-import javax.inject.Singleton;
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Inject;
+import jakarta.inject.Singleton;
 
 @Factory
 public class BFactory {
@@ -67,7 +68,7 @@ public class BFactory {
         return b;
     }
 
-    @Bean
+    @Prototype
     C buildC(B b, @Parameter int count) {
         return new C(b, count);
     }

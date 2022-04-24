@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,20 +15,22 @@
  */
 package io.micronaut.http.client.aop
 
+import io.micronaut.context.ApplicationContext
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.HttpStatus
-import io.micronaut.context.ApplicationContext
-import io.micronaut.http.annotation.Controller
-import io.micronaut.http.annotation.Delete
-import io.micronaut.http.annotation.Get
-import io.micronaut.http.annotation.Patch
-import io.micronaut.http.annotation.Post
+import io.micronaut.http.annotation.*
 import io.micronaut.http.client.annotation.Client
+import io.micronaut.retry.annotation.Retryable
 import io.micronaut.runtime.server.EmbeddedServer
 import spock.lang.AutoCleanup
+import spock.lang.Issue
 import spock.lang.Shared
 import spock.lang.Specification
 
+import java.lang.annotation.ElementType
+import java.lang.annotation.Retention
+import java.lang.annotation.RetentionPolicy
+import java.lang.annotation.Target
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -44,7 +46,6 @@ class BlockingCrudSpec extends Specification {
     ApplicationContext context = ApplicationContext.run()
 
     @Shared
-    @AutoCleanup
     EmbeddedServer embeddedServer = context.getBean(EmbeddedServer).start()
 
     void "test configured client"() {
@@ -98,14 +99,23 @@ class BlockingCrudSpec extends Specification {
         bookAndResponse.status() == HttpStatus.OK
         bookAndResponse.body().title == "The Stand"
 
+        when:'the full response returns 404'
+        bookAndResponse = client.getResponse(-1)
+
+        then:
+        noExceptionThrown()
+        bookAndResponse.status() == HttpStatus.NOT_FOUND
 
         when:
         book = client.update(book.id, "The Shining")
+        books = client.list()
 
         then:
         book != null
         book.title == "The Shining"
         book.id == 1
+        books.size() == 1
+        books.first() instanceof Book
 
         when:
         client.delete(book.id)
@@ -156,6 +166,26 @@ class BlockingCrudSpec extends Specification {
 
         then:
         thrown(IllegalArgumentException)
+    }
+
+    void "test a declarative client void method and 404 response"() {
+        given:
+        VoidNotFoundClient client = context.getBean(VoidNotFoundClient)
+
+        when:
+        client.call()
+
+        then:
+        noExceptionThrown()
+    }
+
+    @Issue('https://github.com/micronaut-projects/micronaut-core/issues/2959')
+    void "test annotation stereotype"() {
+        given:
+        def client = context.getBean(StereotypeClient)
+
+        expect:
+        client.list().size() == 0
     }
 
     @Client('/blocking/books')
@@ -247,4 +277,25 @@ class BlockingCrudSpec extends Specification {
         Long id
         String title
     }
+
+    @Client("/void/404")
+    static interface VoidNotFoundClient {
+
+        @Get
+        void call()
+    }
+
+
+    @BookRetryClient
+    static interface StereotypeClient extends BookApi {
+    }
+
+
+}
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.TYPE)
+@Client("/blocking/books")
+@Retryable
+@interface BookRetryClient {
+    // ...
 }

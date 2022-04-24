@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,12 +15,13 @@
  */
 package io.micronaut.aop.compile
 
+import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 import io.micronaut.context.ApplicationContext
 import io.micronaut.core.annotation.Blocking
-import io.micronaut.inject.AbstractTypeElementSpec
 import io.micronaut.inject.BeanDefinition
 import io.micronaut.inject.BeanFactory
 import io.micronaut.inject.writer.BeanDefinitionVisitor
+import io.micronaut.inject.writer.BeanDefinitionWriter
 
 /**
  * @author graemerocher
@@ -38,7 +39,7 @@ import io.micronaut.context.annotation.*;
 import io.micronaut.core.annotation.*;
 
 @Stub
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 interface MyBean extends MyInterface {
 
     @Override
@@ -63,7 +64,7 @@ interface MyInterface {
 
     void "test that annotation metadata is inherited from overridden methods for around advice"() {
         when:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.$MyBeanDefinition$Intercepted', '''
+        BeanDefinition beanDefinition = buildBeanDefinition('test.$MyBean' + BeanDefinitionWriter.CLASS_SUFFIX + BeanDefinitionWriter.PROXY_SUFFIX, '''
 package test;
 
 import io.micronaut.aop.simple.*;
@@ -71,7 +72,7 @@ import io.micronaut.context.annotation.*;
 import io.micronaut.core.annotation.*;
 
 @Mutating("someVal")
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 class MyBean implements MyInterface {
 
     private String myValue;
@@ -94,8 +95,8 @@ interface MyInterface {
 }
 ''')
         then:
-        !beanDefinition.isAbstract()
         beanDefinition != null
+        !beanDefinition.isAbstract()
         beanDefinition.injectedFields.size() == 0
         beanDefinition.executableMethods.size() == 1
         beanDefinition.executableMethods[0].hasAnnotation(Blocking)
@@ -107,5 +108,83 @@ interface MyInterface {
 
         then:
         instance.someMethod() == 'test'
+    }
+
+    void "test that a bean definition is not created for an abstract class"() {
+        when:
+        ApplicationContext ctx = buildContext('test.$Service' + BeanDefinitionWriter.CLASS_SUFFIX + BeanDefinitionWriter.PROXY_SUFFIX, '''
+package test;
+
+import io.micronaut.aop.*;
+import io.micronaut.context.annotation.*;
+import io.micronaut.core.annotation.*;
+import io.micronaut.core.order.Ordered;
+import java.lang.annotation.*;
+import jakarta.inject.Singleton;
+
+interface ContractService {
+
+    @SomeAnnot
+    void interfaceServiceMethod();
+}
+
+abstract class BaseService {
+
+    @SomeAnnot
+    public void baseServiceMethod() {}
+}
+
+@SomeAnnot
+abstract class BaseAnnotatedService {
+
+}
+
+@Singleton
+class Service extends BaseService implements ContractService {
+
+    @SomeAnnot
+    public void serviceMethod() {}
+    
+    public void interfaceServiceMethod() {}
+}
+
+@Documented
+@Retention(RetentionPolicy.RUNTIME)
+@Target({ElementType.TYPE, ElementType.METHOD, ElementType.PARAMETER})
+@Around
+@Type(SomeInterceptor.class)
+@interface SomeAnnot {}
+
+@Singleton
+class SomeInterceptor implements MethodInterceptor<Object, Object>, Ordered {
+
+    @Override
+    public Object intercept(MethodInvocationContext<Object, Object> context) {
+        return context.proceed();
+    }
+}
+
+''')
+        then:
+        Class clazz = ctx.classLoader.loadClass("test.ContractService")
+        ctx.getBean(clazz)
+
+        when:
+        ctx.classLoader.loadClass("test.\$BaseService" + BeanDefinitionWriter.CLASS_SUFFIX)
+
+        then:
+        thrown(ClassNotFoundException)
+
+        when:
+        ctx.classLoader.loadClass("test.\$BaseService" + BeanDefinitionWriter.CLASS_SUFFIX + BeanDefinitionWriter.PROXY_SUFFIX)
+
+        then:
+        thrown(ClassNotFoundException)
+
+        when:
+        ctx.classLoader.loadClass("test.\$BaseAnnotatedService" + BeanDefinitionWriter.CLASS_SUFFIX)
+
+        then:
+        thrown(ClassNotFoundException)
     }
 }

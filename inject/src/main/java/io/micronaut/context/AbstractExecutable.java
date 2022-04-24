@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,17 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.UsedByGeneratedCode;
 import io.micronaut.core.reflect.ReflectionUtils;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Executable;
 import io.micronaut.core.util.ArrayUtils;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
+import io.micronaut.core.annotation.NonNull;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Objects;
@@ -36,7 +35,6 @@ import java.util.Objects;
  */
 @Internal
 abstract class AbstractExecutable implements Executable {
-    private static final Logger LOG = LoggerFactory.getLogger(AbstractExecutableMethod.class);
 
     protected final Class declaringType;
     protected final String methodName;
@@ -87,9 +85,7 @@ abstract class AbstractExecutable implements Executable {
     }
 
     @Override
-    public Argument[] getArguments() {
-        // initialize
-        initialize();
+    public Argument<?>[] getArguments() {
         return arguments;
     }
 
@@ -100,33 +96,22 @@ abstract class AbstractExecutable implements Executable {
      * @throws NoSuchMethodError if the method doesn't exist
      */
     public final Method getTargetMethod() {
-        Method method = initialize();
         if (method == null) {
-            if (LOG.isWarnEnabled()) {
-                if (LOG.isWarnEnabled()) {
-                    LOG.warn("Type [{}] previously declared a method [{}] which has been removed or changed. It is recommended you re-compile the class or library against the latest version to remove this warning.", declaringType, methodName);
-                }
-            }
-            throw ReflectionUtils.newNoSuchMethodError(declaringType, methodName, argTypes);
+            Method resolvedMethod = resolveTargetMethod();
+            resolvedMethod.setAccessible(true);
+            this.method = resolvedMethod;
         }
-        return method;
+        return this.method;
     }
 
-    private Method initialize() {
-        if (method == null) {
-            Method method = ReflectionUtils.getMethod(declaringType, methodName, argTypes).orElse(null);
-            if (method != null) {
-
-                // instrument the arguments with annotation data from the method
-                method.setAccessible(true);
-                this.method = method;
-                return method;
-            } else {
-                return null;
-            }
-
-        } else {
-            return method;
-        }
+    /**
+     * Resolves the target method.
+     * @return The target method
+     */
+    @NonNull
+    @UsedByGeneratedCode
+    protected Method resolveTargetMethod() {
+        return ReflectionUtils.getRequiredMethod(declaringType, methodName, argTypes);
     }
+
 }

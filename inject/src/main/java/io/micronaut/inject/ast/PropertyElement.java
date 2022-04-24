@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.inject.ast;
 
-import javax.annotation.Nullable;
+import io.micronaut.core.annotation.NonNull;
+import java.util.Optional;
 
 /**
  * A property element represents a JavaBean property on a {@link ClassElement}.
@@ -28,7 +28,7 @@ public interface PropertyElement extends TypedElement, MemberElement {
     /**
      * @return The type of the property
      */
-    @Nullable
+    @NonNull
     @Override
     ClassElement getType();
 
@@ -37,5 +37,21 @@ public interface PropertyElement extends TypedElement, MemberElement {
      *
      * @return True if the property is read only.
      */
-    boolean isReadOnly();
+    default boolean isReadOnly() {
+        return !getWriteMethod().isPresent();
+    }
+
+    /**
+     * @return The name of the method used to write the property
+     */
+    default Optional<MethodElement> getWriteMethod() {
+        return Optional.empty();
+    }
+
+    /**
+     * @return The name of the method used to read the property
+     */
+    default Optional<MethodElement> getReadMethod() {
+        return Optional.empty();
+    }
 }

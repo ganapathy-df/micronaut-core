@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package io.micronaut
 import io.micronaut.context.ApplicationContext
 import io.micronaut.http.client.HttpClient
 import io.micronaut.runtime.server.EmbeddedServer
+import io.netty.handler.codec.http.multipart.DiskFileUpload
 import spock.lang.AutoCleanup
 import spock.lang.Shared
 import spock.lang.Specification
@@ -30,26 +31,21 @@ abstract class AbstractMicronautSpec extends Specification {
 
     static final SPEC_NAME_PROPERTY = 'spec.name'
 
-
     @Shared File uploadDir = File.createTempDir()
     @Shared @AutoCleanup ApplicationContext context = ApplicationContext.run(
             getConfiguration() << [(SPEC_NAME_PROPERTY):getClass().simpleName]
     )
-    @Shared @AutoCleanup EmbeddedServer embeddedServer = context.getBean(EmbeddedServer).start()
-    @Shared int serverPort = embeddedServer.getPort()
-    @Shared URL server = embeddedServer.getURL()
-
+    @Shared EmbeddedServer embeddedServer = context.getBean(EmbeddedServer).start()
     @Shared @AutoCleanup HttpClient client = context.createBean(HttpClient, embeddedServer.getURL())
 
 
-    Collection<String> configurationNames() {
-        ['io.micronaut.configuration.jackson','io.micronaut.web.router']
-    }
-
     Map<String, Object> getConfiguration() {
-        ['micronaut.server.multipart.location':uploadDir.absolutePath]
+        ['micronaut.server.multipart.location': uploadDir.absolutePath]
     }
 
+    def setupSpec() {
+        uploadDir.mkdir()
+    }
 
     def cleanupSpec()  {
         uploadDir.delete()

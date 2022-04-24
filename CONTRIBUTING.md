@@ -2,12 +2,20 @@
 
 ## Finding Issues to Work on
 
-If you are interested in contributing to Micronaut and are looking for issues to work on, take a look at the issues tagged with [help wanted](https://github.com/micronaut-projects/micronaut-core/issues?q=is%3Aopen+is%3Aissue+label%3A%22status%3A+help+wanted%22).
+If you are interested in contributing to Micronaut and are looking for issues to work on, take a look at the issues tagged with [help wanted](https://github.com/micronaut-projects/micronaut-core/issues?q=is%3Aopen+is%3Aissue+label%3A%22help+wanted%22).
+
+## JDK Setup
+
+Micronaut currently requires JDK 8
 
 ## IDE Setup
 
 Micronaut can be imported into IntelliJ IDEA by opening the `build.gradle` file.
 
+## Docker Setup
+
+Micronaut tests currently require docker to be installed.
+ 
 ## Running Tests
 
 To run the tests use `./gradlew check`. 
@@ -39,10 +47,10 @@ To also build the javadocs instead run `./gradlew docs`.
 
 If you are working with the IntelliJ IDEA development environment, you can import the project using the Intellij Gradle Tooling ( "File / Import Project" and select the "settings.gradle" file).
 
-To get a local development version of Micronaut working, first run the `publishToMavenLocal` task.
+To get a local development version of Micronaut working, first run the `cliZip` task.
 
 ```
-./gradlew pTML
+./gradlew cliZip
 ```
 
 Then install SDKman, which is the quickest way to set up a development environment.
@@ -50,7 +58,7 @@ Then install SDKman, which is the quickest way to set up a development environme
 Once you have SDKman installed, point SDKman to your local development version of Micronaut.
 
 ```
-sdk install micronaut dev /path/to/checkout
+sdk install micronaut dev /path/to/checkout/cli/build
 sdk use micronaut dev
 ```
 
@@ -68,7 +76,7 @@ Once you are satisfied with your changes:
 
 - Commit your changes in your local branch
 - Push your changes to your remote branch on GitHub
-- Send us a (pull request)[https://help.github.com/articles/creating-a-pull-request]
+- Send us a [pull request](https://help.github.com/articles/creating-a-pull-request)
 
 ## Checkstyle
 
@@ -96,7 +104,7 @@ In this case, to fix the issues, we need to:
 The plugin also adds a new tab in the bottom to run checkstyle report and see all the errors and warnings. It is recommended
 to run the report and fixing all the issues before submitting a pull request.
 
-##Building on Windows 10
+## Building on Windows 10
 
 The following prerequisites are needed for building and testing on Windows 10:
 

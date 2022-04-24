@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.io
 
 import io.micronaut.core.io.scan.ClassPathResourceLoader
@@ -40,5 +39,50 @@ class ClasspathResourceLoaderSpec extends Specification {
         "classpath:/foo" | "classpath:bar.txt"
         "classpath:/foo" | "classpath:/bar.txt"
         "classpath:foo"  | "classpath:/bar.txt"
+    }
+
+    void "test resolving a classpath resource with a relative path"() {
+        given:
+        ClassPathResourceLoader loader = new DefaultClassPathResourceLoader(getClass().getClassLoader(), base, true)
+
+        expect:
+        loader.getResource(resource).isPresent() == present
+        loader.getResourceAsStream(resource).map({ InputStream io -> io.close(); io })
+                .isPresent() == present
+        loader.getResources(resource).findFirst().isPresent() == present
+
+        where:
+        base            | resource                                        | present
+        "classpath:foo" | "classpath:foo/../other/shouldNotAccess.txt"    | false
+        "classpath:foo" | "classpath:../foo/bar.txt"                      | true
+        "classpath:foo" | "classpath:../other/../foo/bar.txt"             | true
+        "classpath:foo" | "classpath:../foo/../other/shouldNotAccess.txt" | false
+        "classpath:foo" | "classpath:../other/shouldNotAccess.txt"        | false
+        "classpath:foo" | "classpath:foo/../../other/shouldNotAccess.txt" | false
+    }
+
+    void "test resolving a classpath resource with a relative path - check base path false"() {
+        given:
+        ClassPathResourceLoader loader = new DefaultClassPathResourceLoader(getClass().getClassLoader(), base, false)
+
+        expect:
+        loader.getResource(resource).isPresent() == present
+        loader.getResourceAsStream(resource).map({ InputStream io -> io.close(); io })
+                .isPresent() == present
+        loader.getResources(resource).findFirst().isPresent() == present
+
+        where:
+        base            | resource                                                  | present
+        "classpath:foo" | "classpath:/other/../../other/shouldNotAccess.txt"        | false
+        "classpath:foo" | "classpath:other/../../other/shouldNotAccess.txt"         | false
+        "classpath:foo" | "classpath:other\\..\\..\\..\\other\\shouldNotAccess.txt" | false
+        "classpath:foo" | "classpath:../foo/bar.txt"                                | false
+        "classpath:foo" | "classpath:bar.txt"                                       | true
+        "classpath:foo" | "classpath:bar/../other/shouldNotAccess.txt"              | false
+        "classpath:foo" | "classpath:bar/..\\other/shouldNotAccess.txt"             | false
+        "classpath:foo" | "classpath:../other/../foo/bar.txt"                       | false
+        "classpath:foo" | "classpath:../foo/../other/shouldNotAccess.txt"           | false
+        "classpath:foo" | "classpath:../other/shouldNotAccess.txt"                  | false
+        "classpath:foo" | "classpath:foo/../../other/shouldNotAccess.txt"           | false
     }
 }

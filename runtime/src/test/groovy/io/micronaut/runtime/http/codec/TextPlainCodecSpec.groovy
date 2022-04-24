@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,7 @@ class TextPlainCodecSpec extends Specification {
         codec.encode(val, bufferFactory)
 
         then:
-        1 * bufferFactory.buffer(2, 2) >> Stub(ByteBuffer)
+        1 * bufferFactory.wrap(_) >> Stub(ByteBuffer)
     }
 
     void "test additional type configuration"() {

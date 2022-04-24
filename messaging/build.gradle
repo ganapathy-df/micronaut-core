@@ -1,6 +1,18 @@
-dependencies {
+plugins {
+    id "io.micronaut.build.internal.convention-library"
+}
 
-    compileOnly project(":inject-java")
-    compile project(":inject")
-    compile project(":runtime")
+internalSanityChecks {
+    expectedServiceCount.put('io.micronaut.inject.BeanDefinitionReference', 1)
+}           
+
+dependencies {
+    annotationProcessor project(":inject-java")
+    api project(":inject")
+    api project(":runtime")
+
+    testAnnotationProcessor project(":inject-java")
+    testImplementation project(":inject")
+    testImplementation project(":inject-java-test")
+    testCompileOnly project(":inject-groovy")
 }

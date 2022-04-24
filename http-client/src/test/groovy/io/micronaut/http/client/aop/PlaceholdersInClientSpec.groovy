@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,7 +37,6 @@ class PlaceholdersInClientSpec extends Specification {
     )
 
     @Shared
-    @AutoCleanup
     EmbeddedServer embeddedServer = context.getBean(EmbeddedServer).start()
 
     void "test placeholder in @Client value"() {

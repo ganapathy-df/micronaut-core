@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,26 +16,17 @@
 package io.micronaut.http.client.docs.httpstatus
 
 import io.micronaut.context.ApplicationContext
-import io.micronaut.context.annotation.Requires
 import io.micronaut.context.env.Environment
 import io.micronaut.http.HttpRequest
 import io.micronaut.http.HttpResponse
 import io.micronaut.http.HttpStatus
-import io.micronaut.http.MediaType
-import io.micronaut.http.annotation.Controller
-import io.micronaut.http.annotation.Get
-import io.micronaut.http.annotation.Status
-import io.micronaut.http.client.RxHttpClient
+import io.micronaut.http.client.HttpClient
 import io.micronaut.http.client.exceptions.HttpClientResponseException
 import io.micronaut.runtime.server.EmbeddedServer
-import spock.lang.AutoCleanup
-import spock.lang.Issue
-import spock.lang.PendingFeature
-import spock.lang.Shared
-import spock.lang.Specification
-import spock.lang.Unroll
+import spock.lang.*
 
 class HttpStatusSpec extends Specification {
+
     @Shared
     @AutoCleanup
     EmbeddedServer embeddedServer = ApplicationContext.run(EmbeddedServer,
@@ -44,7 +35,7 @@ class HttpStatusSpec extends Specification {
 
     @AutoCleanup
     @Shared
-    RxHttpClient client = embeddedServer.applicationContext.createBean(RxHttpClient, embeddedServer.getURL())
+    HttpClient client = embeddedServer.applicationContext.createBean(HttpClient, embeddedServer.getURL())
 
     @Unroll("#description")
     void "verify default HTTP status and @Status override"() {
@@ -61,18 +52,23 @@ class HttpStatusSpec extends Specification {
         uri                          | status              | description
         "/status/simple"             | HttpStatus.OK       | '200 status is returned by default'
         "/status"                    | HttpStatus.CREATED  | 'It is possible to control the status with @Status'
-        "/httpResponseStatus"        | HttpStatus.CREATED   | 'You can specify status with HttpResponse.status'
+        "/httpResponseStatus"        | HttpStatus.CREATED  | 'You can specify status with HttpResponse.status'
     }
 
     @Issue("https://github.com/micronaut-projects/micronaut-core/issues/866")
-    void "Verify a controller can be annotated with @Status and void return"() {
-        given:
-        String uri = "/status/voidreturn"
+    @Unroll
+    void "Verify a controller can be annotated with @Status and void return for #uri"() {
         when:
         HttpResponse response = client.toBlocking().exchange(HttpRequest.GET(uri))
 
         then:
-        response.status == HttpStatus.CREATED
+        response.status == status
+
+        where:
+        uri                          | status
+        "/status/voidreturn"         | HttpStatus.CREATED
+        "/status/completableVoid"    | HttpStatus.CREATED
+        "/status/maybeVoid"          | HttpStatus.CREATED
     }
 
     void "Verify a controller can return HttpStatus"() {
@@ -95,5 +91,20 @@ class HttpStatusSpec extends Specification {
         HttpClientResponseException e = thrown()
         e.message == "success"
         e.status == HttpStatus.NOT_FOUND
+    }
+
+    @Issue("https://github.com/micronaut-projects/micronaut-core/issues/5348")
+    void "test returning a reactive stream of httpstatus"() {
+        when:
+        HttpResponse response = client.toBlocking().exchange(HttpRequest.GET("/status/reactive"))
+
+        then:
+        response.status() == HttpStatus.CREATED
+
+        when:
+        response = client.toBlocking().exchange(HttpRequest.GET("/status/single"))
+
+        then:
+        response.status() == HttpStatus.CREATED
     }
 }

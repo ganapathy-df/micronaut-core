@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http;
 
 /**
@@ -45,6 +44,11 @@ public enum HttpAttributes implements CharSequence {
     ROUTE_MATCH(Constants.PREFIX + ".route.match"),
 
     /**
+     * Attribute used to store the object that represents the Route metadata.
+     */
+    ROUTE_INFO(Constants.PREFIX + ".route.info"),
+
+    /**
      * Attribute used to store the URI template defined by the route.
      */
     URI_TEMPLATE(Constants.PREFIX + ".route.template"),
@@ -57,7 +61,27 @@ public enum HttpAttributes implements CharSequence {
     /**
      * Attribute used to store the service ID a client request is being sent to. Used for tracing purposes.
      */
-    SERVICE_ID(Constants.PREFIX + ".serviceId");
+    SERVICE_ID(Constants.PREFIX + ".serviceId"),
+
+    /**
+     * Attribute used to store the MediaTypeCodec. Used to override the registered codec per-request.
+     */
+    MEDIA_TYPE_CODEC(Constants.PREFIX + ".mediaType.codec"),
+
+    /**
+     * Attribute used to store the MethodInvocationContext by declarative client.
+     */
+    INVOCATION_CONTEXT(Constants.PREFIX + ".invocationContext"),
+
+    /**
+     * Attribute used to store the cause of an error response.
+     */
+    EXCEPTION(Constants.PREFIX + ".exception"),
+
+    /**
+     * Attribute used to store a client Certificate (mutual authentication).
+     */
+    X509_CERTIFICATE("javax.servlet.request.X509Certificate");
 
     private final String name;
 

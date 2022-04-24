@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,14 +16,13 @@
 package io.micronaut.runtime.context.scope
 
 import io.micronaut.context.ApplicationContext
-import io.micronaut.context.annotation.Bean
 import io.micronaut.context.annotation.Factory
+import io.micronaut.core.annotation.AnnotationUtil
 import io.micronaut.inject.BeanDefinition
 import io.micronaut.support.AbstractBeanDefinitionSpec
+import jakarta.inject.Scope
+import jakarta.inject.Singleton
 
-import javax.inject.Scope
-import javax.inject.Singleton
-import java.lang.annotation.Documented
 import java.lang.annotation.ElementType
 import java.lang.annotation.Retention
 import java.lang.annotation.Target
@@ -50,7 +49,7 @@ class ThreadLocalBean {
 ''')
 
         then:
-        beanDefinition.getAnnotationNameByStereotype(Scope).get() == ThreadLocal.name
+        beanDefinition.getAnnotationNameByStereotype(AnnotationUtil.SCOPE).get() == ThreadLocal.name
 
     }
 
@@ -60,8 +59,8 @@ class ThreadLocalBean {
         BeanDefinition aDefinition = applicationContext.getBeanDefinition(A)
 
         expect:
-        aDefinition.getAnnotationNameByStereotype(Scope).isPresent()
-        aDefinition.getAnnotationNameByStereotype(Scope).get() == ThreadLocal.name
+        aDefinition.getAnnotationNameByStereotype(AnnotationUtil.SCOPE).isPresent()
+        aDefinition.getAnnotationNameByStereotype(AnnotationUtil.SCOPE).get() == ThreadLocal.name
 
     }
 
@@ -209,6 +208,7 @@ interface IA {
 class AImpl implements IA {
     int num
 
+    @Override
     int total() {
         return num
     }
@@ -236,6 +236,7 @@ interface IA2 {
 class A2Impl implements IA2 {
     int num
 
+    @Override
     int total() {
         return num
     }
@@ -243,7 +244,7 @@ class A2Impl implements IA2 {
 
 @Factory
 class  IA2Factory {
-    @Bean
+
     @ThreadLocal
     IA2 a() {
         return new A2Impl()

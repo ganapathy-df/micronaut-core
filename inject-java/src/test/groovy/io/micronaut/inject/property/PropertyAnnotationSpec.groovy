@@ -1,17 +1,62 @@
+/*
+ * Copyright 2017-2019 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.micronaut.inject.property
 
+import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 import io.micronaut.context.ApplicationContext
 import spock.lang.Specification
 
-class PropertyAnnotationSpec extends Specification {
+class PropertyAnnotationSpec extends AbstractTypeElementSpec {
+
+    void "test inject with property"() {
+        given:
+        def context = buildContext('''
+package injectwithcontext;
+
+import io.micronaut.context.annotation.Property;
+import jakarta.inject.Inject;
+
+class Test {
+    @Inject
+    @Property(name="foo", defaultValue = "10")
+    public int value;
+}
+''')
+        expect:
+        getBean(context, 'injectwithcontext.Test').value == 10
+
+        cleanup:
+        context.close()
+    }
 
     void "test inject properties"() {
         given:
         ApplicationContext ctx = ApplicationContext.run(
+                'spec.name': getClass().simpleName,
                 'my.string':'foo',
                 'my.int':10,
                 'my.map.one':'one',
-                'my.map.one.two':'two'
+                'my.map.one.two':'two',
+
+                'my.multi-value-map.one[0]':'one',
+                'my.multi-value-map.one[1]':'two',
+                'my.multi-value-map.one[2]':'three',
+                'my.multi-value-map.one': ['one', 'two', 'three'],
+                'my.multi-value-map.two[0]':'two',
+                'my.multi-value-map.two': ['two'],
         )
 
         ConstructorPropertyInject constructorInjectedBean = ctx.getBean(ConstructorPropertyInject)
@@ -31,6 +76,17 @@ class PropertyAnnotationSpec extends Specification {
         fieldInjectedBean.integer == 10
         fieldInjectedBean.str == 'foo'
         fieldInjectedBean.values == ['one':'one', 'one.two':'two']
-        fieldInjectedBean.defaultInject == ['one':'one', 'one.two':'two']
+        fieldInjectedBean.multiMap == ['one':['one', 'two', 'three'], 'two':['two']]
+        fieldInjectedBean.defaultInject == ['one':'one']
+    }
+
+    void "test a class with only a property annotation is a bean and injected"() {
+        given:
+        ApplicationContext ctx = ApplicationContext.run(
+                'my.int':10,
+        )
+
+        expect:
+        ctx.getBean(PropertyOnlyInject).integer == 10
     }
 }

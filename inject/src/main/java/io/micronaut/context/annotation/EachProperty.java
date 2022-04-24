@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,12 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context.annotation;
+
+import jakarta.inject.Singleton;
 
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
-import javax.inject.Singleton;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
@@ -43,7 +43,7 @@ import java.lang.annotation.Target;
  * <pre><code>
  *  {@literal @}EachProperty("foo.bar")
  *   public class ExampleConfiguration {
- *      ExampleConfiguration({@literal @}Argument String name) {
+ *      ExampleConfiguration({@literal @}Parameter String name) {
  *          ...
  *      }
  *   }
@@ -52,13 +52,13 @@ import java.lang.annotation.Target;
  * <p>In the above example for a configuration property of {@code foo.bar.test}, the value of the {@code name} argument
  * will be {@code "test"}</p>
  * <p>
- * <p>The bean is created as a singleton with a {@link javax.inject.Named} qualifier matching the configuration entry
+ * <p>The bean is created as a singleton with a Named qualifier matching the configuration entry
  * name, thus allowing retrieval with:</p>
  * <pre><code>
  *  ExampleConfiguration exampleConfiguration = applicationContext.getBean(ExampleConfiguration.class, Qualifiers.byName("test"));
  * </code></pre>
  * <p>
- * <p>Or alternatively dependency injection via the {@link javax.inject.Named} qualifier.</p>
+ * <p>Or alternatively dependency injection via the Named qualifier.</p>
  * <p>
  * <p>This annotation is typically used in conjunction with {@link EachBean}. For example, one can drive the
  * configuration of other beans with the {@link EachBean} annotation:</p>
@@ -96,4 +96,22 @@ public @interface EachProperty {
      * @return The name of the key returned by {@link #value()} that should be regarded as the {@link Primary} bean
      */
     String primary() default "";
+
+    /**
+     * @return The names of the properties to include
+     */
+    @AliasFor(annotation = ConfigurationReader.class, member = "includes")
+    String[] includes() default {};
+
+    /**
+     * @return The names of the properties to exclude
+     */
+    @AliasFor(annotation = ConfigurationReader.class, member = "excludes")
+    String[] excludes() default {};
+
+    /**
+     * @return True if the beans should be bound from a list. By default {@link EachProperty} binds to a map where
+     * the key is a string and the value is an instance of the annotated class.
+     */
+    boolean list() default false;
 }

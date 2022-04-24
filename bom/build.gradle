@@ -1,83 +1,49 @@
-publishing {
-    publications {
-        maven(MavenPublication) {
-            pom.withXml {
-                def xml = asNode()
+plugins {
+    id 'io.micronaut.build.internal.bom'
+}
 
-                def profiles = new Properties()
-                profiles.load(new StringReader(new File("$projectDir/profiles.properties").text))
+group projectGroupId
+version projectVersion
 
+micronautBom {
+    extraExcludedProjects = [
+            "benchmarks",
+            "inject-test-utils"
+    ]
+    catalogToPropertyNameOverrides = [
+            'jakarta.annotation.api': 'jakarta.annotation-api',
+            'javax.annotation.api': 'javax.annotation-api',
+            'methvin.directory.watcher': 'methvin.directory-watcher',
+            'paho.v3': 'pahov3',
+            'paho.v5': 'pahov5',
+            'graal.sdk': 'graalSdk',
+            'neo4j.java.driver': 'neo4j.bolt',
+    ]
+    propertyName = 'core'
 
-                xml.children().last() + {
-                    def mkp = delegate
+    suppressions {
+        // https://github.com/micronaut-projects/micronaut-serialization/issues/167
+        dependencies.add("io.micronaut.serde:micronaut-serde-tck:1.0.0")
 
-                    mkp.packaging "pom"
-                    mkp.properties {
-                        for(dep in dependencyVersions) {
-                            def v = dep.value.version
-                            if(!v.toString().endsWith("-SNAPSHOT")) {
-                                mkp."${dep.key}.version"(v)
-                            }
-                        }
-                    }
+        // https://github.com/micronaut-projects/micronaut-oracle-cloud/issues/359
+        dependencies.add("io.micronaut.oraclecloud:micronaut-oraclecloud-sdk-processor:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-oraclecloud-atp-hikari-test:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-example-http-function-java:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-example-function-groovy:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-example-http-function-kotlin:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-example-groovy:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-example-kotlin:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-example-function-java:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-example-java:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-example-http-function-groovy:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-example-function-kotlin:2.1.1")
+        dependencies.add("io.micronaut.oraclecloud:micronaut-oraclecloud-atp-ucp-test:2.1.1")
 
-                    mkp.dependencyManagement {
-                        mkp.dependencies {
-
-                            for (profile in profiles) {
-                                mkp.dependency {
-                                    mkp.groupId 'io.micronaut.profiles'
-                                    mkp.artifactId profile.key
-                                    def version = profile.value
-                                    if (!isBuildSnapshot && version.toString().endsWith("-SNAPSHOT")) {
-                                        throw new RuntimeException("Cannot have a snapshot dependency on a profile [$profile.key] for a release!")
-                                    }
-                                    mkp.version(version)
-                                }
-                            }
-
-                            for (Project p : rootProject.subprojects) {
-                                if (!p.subprojects.empty) continue
-                                if (p.name == "bom") continue
-                                if (p.hasProperty("bomExclude") && p.property("bomExclude") == true) continue
-                                
-                                mkp.dependency {
-                                    mkp.groupId p.group
-                                    mkp.artifactId "micronaut-$p.name"
-                                    mkp.version p.version
-                                }
-                            }
-
-                            for (dep in dependencyVersions) {
-                                def info = dep.value
-                                // don't include snapshots
-                                if(info.version.toString().endsWith("-SNAPSHOT")) {
-                                    continue
-                                }
-
-                                def versionExpr = "\${${dep.key}.version}"
-
-                                if (info.name) {
-                                    mkp.dependency {
-                                        mkp.groupId info.group
-                                        mkp.artifactId info.name
-                                        mkp.version versionExpr
-                                    }
-                                }
-                                if(info.modules) {
-                                   for(m in info.modules) {
-                                       mkp.dependency {
-                                           mkp.groupId info.group
-                                           mkp.artifactId m
-                                           mkp.version versionExpr
-                                       }
-                                   }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
+        // https://github.com/micronaut-projects/micronaut-data/issues/1403
+        dependencies.add("io.micronaut.data:micronaut-data-tck:3.3.0")
+        dependencies.add("io.micronaut.data:micronaut-data-document-tck:3.3.0")
+        
+        // The R2DBC bom that we include mentions dependencies which do not belong to io.r2dbc group
+        bomAuthorizedGroupIds.put("io.r2dbc:r2dbc-bom", ["com.google.cloud", "com.oracle.database.r2dbc", "org.mariadb", "dev.miku"] as Set)
     }
 }

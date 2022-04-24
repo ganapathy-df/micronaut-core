@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,8 +15,13 @@
  */
 package io.micronaut.aop.compile
 
-import io.micronaut.inject.AbstractTypeElementSpec
+import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
+import io.micronaut.aop.exceptions.UnimplementedAdviceException
+import io.micronaut.aop.introduction.NotImplementedAdvice
+import io.micronaut.context.BeanContext
+import io.micronaut.inject.AdvisedBeanType
 import io.micronaut.inject.BeanDefinition
+import io.micronaut.inject.BeanFactory
 import io.micronaut.inject.writer.BeanDefinitionVisitor
 
 import javax.validation.constraints.Min
@@ -26,8 +31,87 @@ import javax.validation.constraints.NotBlank
  * @author graemerocher
  * @since 1.0
  */
-class IntroductionAnnotationSpec extends AbstractTypeElementSpec{
+class IntroductionAnnotationSpec extends AbstractTypeElementSpec {
 
+    void 'test unimplemented introduction advice'() {
+        given:
+        BeanDefinition beanDefinition = buildBeanDefinition('test.MyBean' + BeanDefinitionVisitor.PROXY_SUFFIX, '''
+package test;
+
+import io.micronaut.aop.introduction.*;
+import io.micronaut.context.annotation.*;
+
+@NotImplemented
+interface MyBean {
+    void test();
+}
+
+
+
+''')
+        def context = BeanContext.run()
+        def bean = ((BeanFactory) beanDefinition).build(context, beanDefinition)
+
+        when:
+        bean.test()
+
+        then:
+        beanDefinition instanceof AdvisedBeanType
+        beanDefinition.interceptedType.name == 'test.MyBean'
+        thrown(UnimplementedAdviceException)
+
+        cleanup:
+        context.close()
+    }
+
+    void 'test unimplemented introduction advice on abstract class with concrete methods'() {
+        given:
+        BeanDefinition beanDefinition = buildBeanDefinition('test.MyBean' + BeanDefinitionVisitor.PROXY_SUFFIX, '''
+package test;
+
+import io.micronaut.aop.introduction.*;
+import io.micronaut.context.annotation.*;
+import io.micronaut.aop.simple.Mutating;
+
+@NotImplemented
+abstract class MyBean {
+    abstract void test();
+    
+    public String test2() {
+        return "good";
+    }
+    
+    @Mutating("arg")
+    public String test3(String arg) {
+        return arg;
+    }
+}
+
+
+
+''')
+        def context = BeanContext.run()
+        def bean = ((BeanFactory) beanDefinition).build(context, beanDefinition)
+        when:
+        bean.test()
+
+
+        then:
+        thrown(UnimplementedAdviceException)
+        NotImplementedAdvice.invoked
+
+        when:
+        NotImplementedAdvice.invoked = false
+
+        then:
+        bean.test2() == 'good'
+        bean.test3() == 'changed'
+        !NotImplementedAdvice.invoked
+
+        cleanup:
+        context.close()
+
+    }
 
     void "test @Min annotation"() {
         when:
@@ -40,13 +124,15 @@ import java.net.*;
 import javax.validation.constraints.*;
 
 interface MyInterface{
+    @Executable
     void save(@NotBlank String name, @Min(1L) int age);
+    @Executable
     void saveTwo(@Min(1L) String name);
 }
 
 
 @Stub
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 interface MyBean extends MyInterface {
 }
 

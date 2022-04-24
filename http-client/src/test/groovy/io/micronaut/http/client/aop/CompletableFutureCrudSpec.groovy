@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,7 @@
 package io.micronaut.http.client.aop
 
 import io.micronaut.context.ApplicationContext
-import io.micronaut.http.annotation.Controller
-import io.micronaut.http.annotation.Delete
-import io.micronaut.http.annotation.Get
-import io.micronaut.http.annotation.Patch
-import io.micronaut.http.annotation.Post
+import io.micronaut.http.annotation.*
 import io.micronaut.http.client.annotation.Client
 import io.micronaut.runtime.server.EmbeddedServer
 import spock.lang.AutoCleanup
@@ -28,6 +24,7 @@ import spock.lang.Shared
 import spock.lang.Specification
 
 import java.util.concurrent.CompletableFuture
+import java.util.concurrent.CompletionStage
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -41,7 +38,6 @@ class CompletableFutureCrudSpec extends Specification {
     ApplicationContext context = ApplicationContext.run()
 
     @Shared
-    @AutoCleanup
     EmbeddedServer embeddedServer = context.getBean(EmbeddedServer).start()
 
     void "test it is possible to implement CRUD operations with CompletableFuture"() {
@@ -82,16 +78,25 @@ class CompletableFutureCrudSpec extends Specification {
         book.id == 1
 
         when:
-        book = client.delete(book.id).get()
+        Optional<Book> optionalBook = client.getOptional(book.id).get()
+        book = optionalBook.get()
+        then:
+        noExceptionThrown()
 
+        when:
+        book = client.delete(book.id).get()
         then:
         book != null
 
         when:
-        book = client.get(book.id)
-                .get()
+        book = client.get(book.id).get()
         then:
         book == null
+
+        when:
+        optionalBook = client.getOptional(111).get()
+        then:
+        !optionalBook.isPresent()
     }
 
 
@@ -106,7 +111,12 @@ class CompletableFutureCrudSpec extends Specification {
         AtomicLong currentId = new AtomicLong(0)
 
         @Override
-        CompletableFuture<Book> get(Long id) {
+        CompletionStage<Optional<Book>> getOptional(Long id) {
+            return CompletableFuture.completedFuture(Optional.ofNullable(books.get(id)))
+        }
+
+        @Override
+        CompletionStage<Book> get(Long id) {
             Book book = books.get(id)
             return CompletableFuture.completedFuture(book)
         }
@@ -141,8 +151,11 @@ class CompletableFutureCrudSpec extends Specification {
 
     static interface BookApi {
 
+        @Get("/optional/{id}")
+        CompletionStage<Optional<Book>> getOptional(Long id)
+
         @Get("/{id}")
-        CompletableFuture<Book> get(Long id)
+        CompletionStage<Book> get(Long id)
 
         @Get
         CompletableFuture<List<Book>> list()

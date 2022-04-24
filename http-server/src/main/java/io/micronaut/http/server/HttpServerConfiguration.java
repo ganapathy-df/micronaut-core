@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,25 +13,34 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.server;
 
 import io.micronaut.context.annotation.ConfigurationProperties;
+import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.convert.format.ReadableBytes;
 import io.micronaut.core.util.StringUtils;
 import io.micronaut.core.util.Toggleable;
+import io.micronaut.http.HttpVersion;
+import io.micronaut.http.context.ServerContextPathProvider;
 import io.micronaut.http.server.cors.CorsOriginConfiguration;
+import io.micronaut.http.server.util.locale.HttpLocaleResolutionConfiguration;
 import io.micronaut.runtime.ApplicationConfiguration;
+import io.micronaut.scheduling.executor.ThreadSelection;
+import jakarta.inject.Inject;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.nio.charset.Charset;
 import java.time.Duration;
-import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Pattern;
 
 /**
  * <p>A base {@link ConfigurationProperties} for servers.</p>
@@ -40,7 +49,7 @@ import java.util.Optional;
  * @since 1.0
  */
 @ConfigurationProperties(value = HttpServerConfiguration.PREFIX, cliPrefix = "")
-public class HttpServerConfiguration {
+public class HttpServerConfiguration implements ServerContextPathProvider {
 
     /**
      * The default port value.
@@ -51,7 +60,6 @@ public class HttpServerConfiguration {
     /**
      * The prefix used for configuration.
      */
-
     public static final String PREFIX = "micronaut.server";
 
     /**
@@ -64,19 +72,19 @@ public class HttpServerConfiguration {
      * The default max request size.
      */
     @SuppressWarnings("WeakerAccess")
-    public static final long DEFAULT_MAX_REQUEST_SIZE = 1024 * 1024 * 10; // 10MB
+    public static final long DEFAULT_MAX_REQUEST_SIZE = 1024 * 1024 * 10L; // 10MB
 
     /**
      * The default read idle time in minutes.
      */
     @SuppressWarnings("WeakerAccess")
-    public static final long DEFAULT_READ_IDLE_TIME_MINUTES = 5;
+    public static final long DEFAULT_READ_IDLE_TIME_MINUTES = 5L;
 
     /**
      * The default write idle time in minutes.
      */
     @SuppressWarnings("WeakerAccess")
-    public static final long DEFAULT_WRITE_IDLE_TIME_MINUTES = 5;
+    public static final long DEFAULT_WRITE_IDLE_TIME_MINUTES = 5L;
 
     /**
      * The default date header.
@@ -96,21 +104,40 @@ public class HttpServerConfiguration {
     @SuppressWarnings("WeakerAccess")
     public static final boolean DEFAULT_LOG_HANDLED_EXCEPTIONS = false;
 
+    /**
+     * The default value for enabling dual protocol (http/https).
+     */
+    @SuppressWarnings("WeakerAccess")
+    public static final boolean DEFAULT_DUAL_PROTOCOL = false;
+
+    /**
+     * The default value for redirect HTTP to HTTPS when using dual protocal.
+     */
+    @SuppressWarnings("WeakerAccess")
+    public static final boolean DEFAULT_HTTP_TO_HTTPS_REDIRECT = false;
+
     private Integer port;
     private String host;
     private Integer readTimeout;
     private long maxRequestSize = DEFAULT_MAX_REQUEST_SIZE;
     private Duration readIdleTimeout = null;
     private Duration writeIdleTimeout = null;
-    private Duration idleTimeout = Duration.of(DEFAULT_IDLE_TIME_MINUTES, ChronoUnit.MINUTES);
+    private Duration idleTimeout = Duration.ofMinutes(DEFAULT_IDLE_TIME_MINUTES);
     private MultipartConfiguration multipart = new MultipartConfiguration();
     private CorsConfiguration cors = new CorsConfiguration();
     private String serverHeader;
     private boolean dateHeader = DEFAULT_DATEHEADER;
     private boolean logHandledExceptions = DEFAULT_LOG_HANDLED_EXCEPTIONS;
-
+    private HostResolutionConfiguration hostResolution;
+    private HttpLocaleResolutionConfigurationProperties localeResolution;
+    private String clientAddressHeader;
+    private String contextPath;
+    private boolean dualProtocol = DEFAULT_DUAL_PROTOCOL;
+    private boolean httpToHttpsRedirect = DEFAULT_HTTP_TO_HTTPS_REDIRECT;
+    private HttpVersion httpVersion = HttpVersion.HTTP_1_1;
     private final ApplicationConfiguration applicationConfiguration;
     private Charset defaultCharset;
+    private ThreadSelection threadSelection = ThreadSelection.MANUAL;
 
     /**
      * Default constructor.
@@ -128,7 +155,42 @@ public class HttpServerConfiguration {
             this.defaultCharset = applicationConfiguration.getDefaultCharset();
         }
 
-        this.applicationConfiguration = applicationConfiguration;
+        this.applicationConfiguration = applicationConfiguration != null ? applicationConfiguration : new ApplicationConfiguration();
+    }
+
+    /**
+     * The HTTP version to use. Defaults to {@link HttpVersion#HTTP_1_1}.
+     * @return The http version
+     */
+    public HttpVersion getHttpVersion() {
+        return httpVersion;
+    }
+
+    /**
+     * Sets the HTTP version to use. Defaults to {@link HttpVersion#HTTP_1_1}.
+     * @param httpVersion The http version
+     */
+    public void setHttpVersion(HttpVersion httpVersion) {
+        if (httpVersion != null) {
+            this.httpVersion = httpVersion;
+        }
+    }
+
+    /**
+     * @return The {@link ThreadSelection} model to use for the server.
+     */
+    public @NonNull ThreadSelection getThreadSelection() {
+        return threadSelection;
+    }
+
+    /**
+     * Sets the {@link io.micronaut.scheduling.executor.ThreadSelection} model to use for the server. Default value MANUAL.
+     * @param threadSelection The thread selection model
+     */
+    public void setThreadSelection(ThreadSelection threadSelection) {
+        if (threadSelection != null) {
+            this.threadSelection = threadSelection;
+        }
     }
 
     /**
@@ -143,13 +205,6 @@ public class HttpServerConfiguration {
      */
     public Charset getDefaultCharset() {
         return defaultCharset;
-    }
-
-    /**
-     * @param defaultCharset The default charset to use
-     */
-    public void setDefaultCharset(Charset defaultCharset) {
-        this.defaultCharset = defaultCharset;
     }
 
     /**
@@ -198,14 +253,14 @@ public class HttpServerConfiguration {
      * @return The default amount of time to allow read operation connections  to remain idle
      */
     public Duration getReadIdleTimeout() {
-        return Optional.ofNullable(readIdleTimeout).orElse(idleTimeout);
+        return Optional.ofNullable(readIdleTimeout).orElse(Duration.ofMinutes(DEFAULT_READ_IDLE_TIME_MINUTES));
     }
 
     /**
      * @return The default amount of time to allow write operation connections to remain idle
      */
     public Duration getWriteIdleTimeout() {
-        return Optional.ofNullable(writeIdleTimeout).orElse(idleTimeout);
+        return Optional.ofNullable(writeIdleTimeout).orElse(Duration.ofMinutes(DEFAULT_WRITE_IDLE_TIME_MINUTES));
     }
 
     /**
@@ -235,6 +290,58 @@ public class HttpServerConfiguration {
      */
     public boolean isLogHandledExceptions() {
         return logHandledExceptions;
+    }
+
+    /**
+     * @return The host resolution configuration
+     */
+    @Nullable
+    public HostResolutionConfiguration getHostResolution() {
+        return hostResolution;
+    }
+
+    /**
+     * @return The host resolution configuration
+     */
+    @Nullable
+    public HttpLocaleResolutionConfiguration getLocaleResolution() {
+        return localeResolution;
+    }
+
+    /**
+     * @return Which header stores the original client
+     */
+    public String getClientAddressHeader() {
+        return clientAddressHeader;
+    }
+
+    /**
+     * @return the context path for the web server
+     */
+    @Override
+    public String getContextPath() {
+        return contextPath;
+    }
+
+    /**
+     * @return if dual protocol has been enabled or not
+     */
+    public boolean isDualProtocol() {
+        return dualProtocol;
+    }
+
+    /**
+     * @return if redirection from HTTP to HTTPS is enabled or not
+     */
+    public boolean isHttpToHttpsRedirect() {
+        return httpToHttpsRedirect;
+    }
+
+    /**
+     * @param defaultCharset The default charset to use
+     */
+    public void setDefaultCharset(Charset defaultCharset) {
+        this.defaultCharset = defaultCharset;
     }
 
     /**
@@ -284,7 +391,7 @@ public class HttpServerConfiguration {
     }
 
     /**
-     * Sets the amount of time a connection can remain idle without any reads occurring. Default value ({@value #DEFAULT_READ_IDLE_TIME_MINUTES} seconds).
+     * Sets the amount of time a connection can remain idle without any reads occurring. Default value ({@value #DEFAULT_READ_IDLE_TIME_MINUTES} minutes).
      *
      * @param readIdleTimeout The read idle time
      */
@@ -293,7 +400,7 @@ public class HttpServerConfiguration {
     }
 
     /**
-     * Sets the amount of time a connection can remain idle without any writes occurring. Default value ({@value #DEFAULT_WRITE_IDLE_TIME_MINUTES} seconds).
+     * Sets the amount of time a connection can remain idle without any writes occurring. Default value ({@value #DEFAULT_WRITE_IDLE_TIME_MINUTES} minutes).
      *
      * @param writeIdleTimeout The write idle time
      */
@@ -302,7 +409,7 @@ public class HttpServerConfiguration {
     }
 
     /**
-     * Sets the idle time of connections for the server. Default value ({@value #DEFAULT_IDLE_TIME_MINUTES} seconds).
+     * Sets the idle time of connections for the server. Default value ({@value #DEFAULT_IDLE_TIME_MINUTES} minutes).
      *
      * @param idleTimeout The idle time
      */
@@ -349,6 +456,53 @@ public class HttpServerConfiguration {
     }
 
     /**
+     * @param hostResolution The host resolution configuration
+     */
+    public void setHostResolution(HostResolutionConfiguration hostResolution) {
+        this.hostResolution = hostResolution;
+    }
+
+    /**
+     * @param localeResolution The locale resolution configuration
+     */
+    public void setLocaleResolution(HttpLocaleResolutionConfigurationProperties localeResolution) {
+        this.localeResolution = localeResolution;
+    }
+
+    /**
+     * @param clientAddressHeader The header that stores the original client address
+     */
+    public void setClientAddressHeader(String clientAddressHeader) {
+        this.clientAddressHeader = clientAddressHeader;
+    }
+
+    /**
+     * Sets the context path for the web server.
+     *
+     * @param contextPath the context path for the web server
+     */
+    public void setContextPath(String contextPath) {
+        this.contextPath = contextPath;
+    }
+
+    /**
+     * @param dualProtocol the dual protocol (http/https) configuration. Default value ({@value #DEFAULT_DUAL_PROTOCOL}).
+     */
+    public void setDualProtocol(boolean dualProtocol) {
+        this.dualProtocol = dualProtocol;
+    }
+
+    /**
+     * @param httpToHttpsRedirect Set to true to enable redirecting all http requests to the same URL but with
+                                  https instead. This should only be used when {@code dualProtocol} is enabled.
+                                  Default value ({@value #DEFAULT_HTTP_TO_HTTPS_REDIRECT}). This feature uses
+                                  the host resolution capabilities to determine the host to redirect to.
+     */
+    public void setHttpToHttpsRedirect(boolean httpToHttpsRedirect) {
+        this.httpToHttpsRedirect = httpToHttpsRedirect;
+    }
+
+    /**
      * Configuration for multipart handling.
      */
     @ConfigurationProperties("multipart")
@@ -364,7 +518,7 @@ public class HttpServerConfiguration {
          * The default max file size.
          */
         @SuppressWarnings("WeakerAccess")
-        public static final long DEFAULT_MAX_FILE_SIZE = 1024 * 1024; // 1MB
+        public static final long DEFAULT_MAX_FILE_SIZE = 1024L * 1024; // 1MB
 
         /**
          * The default disk value.
@@ -372,10 +526,24 @@ public class HttpServerConfiguration {
         @SuppressWarnings("WeakerAccess")
         public static final boolean DEFAULT_DISK = false;
 
+        /**
+         * The default mixed value.
+         */
+        @SuppressWarnings("WeakerAccess")
+        public static final boolean DEFAULT_MIXED = false;
+
+        /**
+         * The default threshold value.
+         */
+        @SuppressWarnings("WeakerAccess")
+        public static final long DEFAULT_THRESHOLD = 1024L * 1024 * 10; // 10MB
+
         private File location;
         private long maxFileSize = DEFAULT_MAX_FILE_SIZE;
-        private boolean enabled = DEFAULT_ENABLED;
+        private Boolean enabled;
         private boolean disk = DEFAULT_DISK;
+        private boolean mixed = DEFAULT_MIXED;
+        private long threshold = DEFAULT_THRESHOLD;
 
         /**
          * @return The location to store temporary files
@@ -396,7 +564,18 @@ public class HttpServerConfiguration {
          */
         @Override
         public boolean isEnabled() {
-            return enabled;
+            return enabled == null ? DEFAULT_ENABLED : enabled;
+        }
+
+        /**
+         * The default multipart enabled setting is false for servlets, but effectively
+         * true for Netty. This method returns the value only if set by the user.
+         *
+         * @return The enabled setting.
+         */
+        @Internal
+        public Optional<Boolean> getEnabled() {
+            return Optional.ofNullable(enabled);
         }
 
         /**
@@ -404,6 +583,20 @@ public class HttpServerConfiguration {
          */
         public boolean isDisk() {
             return disk;
+        }
+
+        /**
+         * @return Whether to use a mixed upload
+         */
+        public boolean isMixed() {
+            return mixed;
+        }
+
+        /**
+         * @return The threshold to trigger storage to disk
+         */
+        public long getThreshold() {
+            return threshold;
         }
 
         /**
@@ -437,6 +630,26 @@ public class HttpServerConfiguration {
         public void setDisk(boolean disk) {
             this.disk = disk;
         }
+
+        /**
+         * Sets whether to buffer data to disk if the size is greater than the
+         * threshold. Default value ({@value #DEFAULT_MIXED}).
+         *
+         * @param mixed True if data should be written to disk after a threshold.
+         */
+        public void setMixed(boolean mixed) {
+            this.mixed = mixed;
+        }
+
+        /**
+         * Sets the amount of data that should be received that will trigger
+         * the data to be stored to disk. Default value ({@value #DEFAULT_THRESHOLD}).
+         *
+         * @param threshold The threshold
+         */
+        public void setThreshold(@ReadableBytes long threshold) {
+            this.threshold = threshold;
+        }
     }
 
     /**
@@ -446,8 +659,10 @@ public class HttpServerConfiguration {
     public static class CorsConfiguration implements Toggleable {
 
         public static final boolean DEFAULT_ENABLED = false;
+        public static final boolean DEFAULT_SINGLE_HEADER = false;
 
         private boolean enabled = DEFAULT_ENABLED;
+        private boolean singleHeader = DEFAULT_SINGLE_HEADER;
 
         private Map<String, CorsOriginConfiguration> configurations = Collections.emptyMap();
 
@@ -475,6 +690,13 @@ public class HttpServerConfiguration {
         }
 
         /**
+         * @return Whether headers should be combined into a single header
+         */
+        public boolean isSingleHeader() {
+            return singleHeader;
+        }
+
+        /**
          * Sets whether CORS is enabled. Default value ({@value #DEFAULT_ENABLED})
          * @param enabled True if CORS is enabled
          */
@@ -488,6 +710,221 @@ public class HttpServerConfiguration {
          */
         public void setConfigurations(Map<String, CorsOriginConfiguration> configurations) {
             this.configurations = configurations;
+        }
+
+        /**
+         * Sets whether CORS header values should be joined into a single header. Default value ({@value #DEFAULT_SINGLE_HEADER}).
+         *
+         * @param singleHeader The single header flag
+         */
+        public void setSingleHeader(boolean singleHeader) {
+            this.singleHeader = singleHeader;
+        }
+    }
+
+    /**
+     * Configuration for host resolution with the {@link io.micronaut.http.server.util.HttpHostResolver}.
+     */
+    @ConfigurationProperties("host-resolution")
+    public static class HostResolutionConfiguration {
+
+        private static final Boolean DEFAULT_PORT_IN_HOST = false;
+
+        private String hostHeader;
+        private String protocolHeader;
+        private String portHeader;
+        private boolean portInHost = DEFAULT_PORT_IN_HOST;
+        private List<Pattern> allowedHosts = Collections.emptyList();
+
+        /**
+         * @return The host header name
+         */
+        public String getHostHeader() {
+            return hostHeader;
+        }
+
+        /**
+         * @param hostHeader The header name that stores the host
+         */
+        public void setHostHeader(String hostHeader) {
+            this.hostHeader = hostHeader;
+        }
+
+        /**
+         * @return The protocol header name
+         */
+        public String getProtocolHeader() {
+            return protocolHeader;
+        }
+
+        /**
+         * @param protocolHeader The header name that stores the protocol
+         */
+        public void setProtocolHeader(String protocolHeader) {
+            this.protocolHeader = protocolHeader;
+        }
+
+        /**
+         * @return The port header name
+         */
+        public String getPortHeader() {
+            return portHeader;
+        }
+
+        /**
+         * @param portHeader The header name that stores the port
+         */
+        public void setPortHeader(String portHeader) {
+            this.portHeader = portHeader;
+        }
+
+        /**
+         * @return If the host header supports a port
+         */
+        public boolean isPortInHost() {
+            return portInHost;
+        }
+
+        /**
+         * @param portInHost True if the host header supports a port
+         *                   appended with {@code :}. Default value ({@value #DEFAULT_PORT_IN_HOST}).
+         */
+        public void setPortInHost(boolean portInHost) {
+            this.portInHost = portInHost;
+        }
+
+        /**
+         * @return The list of hosts to validate the resolved host against.
+         */
+        public List<Pattern> getAllowedHosts() {
+            return allowedHosts;
+        }
+
+        /**
+         * @param allowedHosts The list of allowed host regex patterns. Any resolved
+         *                     host must match one of the configured hosts if the
+         *                     list is supplied. Each host is passed through
+         *                     {@link Pattern#compile(String)}.
+         */
+        public void setAllowedHosts(List<String> allowedHosts) {
+            this.allowedHosts = new ArrayList<>(allowedHosts.size());
+            for (String s: allowedHosts) {
+                this.allowedHosts.add(Pattern.compile(s));
+            }
+        }
+
+        /**
+         * @return True if any host headers have been configured
+         */
+        public boolean headersConfigured() {
+            return hostHeader != null || protocolHeader != null || portHeader != null;
+        }
+    }
+
+    /**
+     * Configuration for locale resolution used by {@link io.micronaut.http.server.util.locale.HttpLocaleResolver}.
+     */
+    @ConfigurationProperties("locale-resolution")
+    public static class HttpLocaleResolutionConfigurationProperties implements HttpLocaleResolutionConfiguration {
+
+        public static final String PREFIX = HttpServerConfiguration.PREFIX + ".locale-resolution";
+        private static final boolean DEFAULT_HEADER_RESOLUTION = true;
+
+        private Locale fixed;
+        private String sessionAttribute;
+        private String cookieName;
+        private boolean header = DEFAULT_HEADER_RESOLUTION;
+        private Locale defaultLocale = Locale.getDefault();
+
+        /**
+         * @return The fixed locale
+         */
+        @NonNull
+        public Optional<Locale> getFixed() {
+            return Optional.ofNullable(fixed);
+        }
+
+        /**
+         * Set the language tag for the locale. Supports BCP 47 language
+         * tags (e.g. "en-US") and ISO standard (e.g "en_US").
+         *
+         * @param fixed The fixed locale
+         */
+        public void setFixed(@Nullable Locale fixed) {
+            this.fixed = fixed;
+        }
+
+        /**
+         * @return The key in the session that stores the locale
+         */
+        @Override
+        @NonNull
+        public Optional<String> getSessionAttribute() {
+            return Optional.ofNullable(sessionAttribute);
+        }
+
+        /**
+         * Sets the key in the session to look for the locale.
+         *
+         * @param sessionAttribute The session attribute key
+         */
+        public void setSessionAttribute(@Nullable String sessionAttribute) {
+            this.sessionAttribute = sessionAttribute;
+        }
+
+        /**
+         * @return The locale to be used if one cannot be resolved.
+         */
+        @Override
+        @NonNull
+        public Locale getDefaultLocale() {
+            return defaultLocale;
+        }
+
+        /**
+         * Sets the locale that will be used if the locale cannot be
+         * resolved through any means. Defaults to the system default.
+         *
+         * @param defaultLocale The default locale.
+         */
+        public void setDefaultLocale(@NonNull Locale defaultLocale) {
+            this.defaultLocale = defaultLocale;
+        }
+
+        /**
+         * @return The name of the cookie that contains the locale.
+         */
+        @Override
+        @NonNull
+        public Optional<String> getCookieName() {
+            return Optional.ofNullable(cookieName);
+        }
+
+        /**
+         * Sets the name of the cookie that is used to store the locale.
+         *
+         * @param cookieName The name of the cookie used to store the locale
+         */
+        public void setCookieName(@Nullable String cookieName) {
+            this.cookieName = cookieName;
+        }
+
+        /**
+         * @return True if the accept header should be searched for the locale.
+         */
+        @Override
+        public boolean isHeader() {
+            return header;
+        }
+
+        /**
+         * Set to true if the locale should be resolved from the `Accept-Language` header.
+         * Default value ({@value #DEFAULT_HEADER_RESOLUTION}).
+         *
+         * @param header Header resolution
+         */
+        public void setHeader(boolean header) {
+            this.header = header;
         }
     }
 }

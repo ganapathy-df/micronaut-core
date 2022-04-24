@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.util;
 
 /**
@@ -26,9 +25,13 @@ package io.micronaut.core.util;
  */
 public interface PathMatcher {
     /**
-     * The default Ant style patch matcher.
+     * The default Ant style path matcher.
      */
     AntPathMatcher ANT = new AntPathMatcher();
+    /**
+     * The default regex style path matcher.
+     */
+    RegexPathMatcher REGEX = new RegexPathMatcher();
 
     /**
      * Returns <code>true</code> if the given <code>source</code> matches the specified <code>pattern</code>,

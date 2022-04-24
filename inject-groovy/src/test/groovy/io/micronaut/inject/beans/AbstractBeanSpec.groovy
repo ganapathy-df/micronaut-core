@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,7 +15,7 @@
  */
 package io.micronaut.inject.beans
 
-import io.micronaut.AbstractBeanDefinitionSpec
+import io.micronaut.ast.transform.test.AbstractBeanDefinitionSpec
 import io.micronaut.inject.BeanDefinition
 
 /**
@@ -26,12 +26,12 @@ class AbstractBeanSpec extends AbstractBeanDefinitionSpec {
 
     void "test that abstract bean definitions are built for abstract classes"() {
         when:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.AbstractBean', '''
-package test;
+        BeanDefinition beanDefinition = buildBeanDefinition('abbean1.AbstractBean', '''
+package abbean1;
 
 import io.micronaut.context.annotation.*;
 
-@javax.inject.Singleton
+@jakarta.inject.Singleton
 abstract class AbstractBean {
     @Value("server.host")
     String host

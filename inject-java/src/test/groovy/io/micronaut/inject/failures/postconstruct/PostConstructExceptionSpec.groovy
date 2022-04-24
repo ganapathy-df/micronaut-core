@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,6 +15,7 @@
  */
 package io.micronaut.inject.failures.postconstruct
 
+import io.micronaut.context.ApplicationContext
 import io.micronaut.context.BeanContext
 import io.micronaut.context.DefaultBeanContext
 import io.micronaut.context.exceptions.BeanInstantiationException
@@ -24,14 +25,19 @@ class PostConstructExceptionSpec extends Specification {
 
     void "test error message when a bean has an error in the post construct method"() {
         given:
-        BeanContext context = new DefaultBeanContext()
-        context.start()
+        ApplicationContext context = ApplicationContext.run(["spec.name": getClass().simpleName])
 
         when:"A bean is obtained that has a setter with @Inject"
         B b =  context.getBean(B)
 
         then:"The implementation is injected"
         def e = thrown(BeanInstantiationException)
-        e.message == 'Error instantiating bean of type [io.micronaut.inject.failures.postconstruct.B]: bad'
+        e.message == '''Error instantiating bean of type  [io.micronaut.inject.failures.postconstruct.B]
+
+Message: bad
+Path Taken: new B()'''
+
+        cleanup:
+        context.close()
     }
 }

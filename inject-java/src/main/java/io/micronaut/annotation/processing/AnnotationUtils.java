@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,29 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.annotation.processing;
 
-import com.github.benmanes.caffeine.cache.Cache;
-import com.github.benmanes.caffeine.cache.Caffeine;
 import io.micronaut.annotation.processing.visitor.JavaVisitorContext;
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.AnnotationUtil;
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.core.convert.value.MutableConvertibleValues;
 import io.micronaut.core.convert.value.MutableConvertibleValuesMap;
-import io.micronaut.inject.visitor.VisitorContext;
+import io.micronaut.core.io.service.ServiceDefinition;
+import io.micronaut.core.io.service.SoftServiceLoader;
+import io.micronaut.core.util.clhm.ConcurrentLinkedHashMap;
+import io.micronaut.inject.annotation.AnnotatedElementValidator;
+import io.micronaut.inject.annotation.AbstractAnnotationMetadataBuilder;
+
+import io.micronaut.core.annotation.Nullable;
+import io.micronaut.inject.visitor.TypeElementVisitor;
 
 import javax.annotation.processing.Filer;
 import javax.annotation.processing.Messager;
+import javax.annotation.processing.ProcessingEnvironment;
 import javax.lang.model.element.AnnotationMirror;
 import javax.lang.model.element.Element;
 import javax.lang.model.element.ExecutableElement;
 import javax.lang.model.util.Elements;
 import javax.lang.model.util.Types;
 import java.lang.annotation.Annotation;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 /**
  * Utility methods for annotations.
@@ -44,10 +48,12 @@ import java.util.List;
  * @author Dean Wette
  */
 @SuppressWarnings("ConstantName")
+@Internal
 public class AnnotationUtils {
 
     private static final int CACHE_SIZE = 100;
-    private static final Cache<Element, AnnotationMetadata> annotationMetadataCache = Caffeine.newBuilder().maximumSize(CACHE_SIZE).build();
+    private static final Map<Element, AnnotationMetadata> annotationMetadataCache
+            = new ConcurrentLinkedHashMap.Builder<Element, AnnotationMetadata>().maximumWeightedCapacity(CACHE_SIZE).build();
 
     private final Elements elementUtils;
     private final Messager messager;
@@ -55,48 +61,86 @@ public class AnnotationUtils {
     private final ModelUtils modelUtils;
     private final Filer filer;
     private final MutableConvertibleValues<Object> visitorAttributes;
+    private final ProcessingEnvironment processingEnv;
+    private final AnnotatedElementValidator elementValidator;
+    private JavaAnnotationMetadataBuilder javaAnnotationMetadataBuilder;
+    private final GenericUtils genericUtils;
 
     /**
      * Default constructor.
      *
+     * @param processingEnv     The processing env
      * @param elementUtils      The elements
      * @param messager          The messager
      * @param types             The types
      * @param modelUtils        The model utils
+     * @param genericUtils      The generic utils
      * @param filer             The filer
      * @param visitorAttributes The visitor attributes
      */
     protected AnnotationUtils(
+            ProcessingEnvironment processingEnv,
             Elements elementUtils,
             Messager messager,
             Types types,
             ModelUtils modelUtils,
+            GenericUtils genericUtils,
             Filer filer,
             MutableConvertibleValues<Object> visitorAttributes) {
         this.elementUtils = elementUtils;
         this.messager = messager;
         this.types = types;
         this.modelUtils = modelUtils;
+        this.genericUtils = genericUtils;
         this.filer = filer;
         this.visitorAttributes = visitorAttributes;
+        this.processingEnv = processingEnv;
+        final SoftServiceLoader<AnnotatedElementValidator> validators = SoftServiceLoader.load(AnnotatedElementValidator.class);
+        final Iterator<ServiceDefinition<AnnotatedElementValidator>> i = validators.iterator();
+        AnnotatedElementValidator elementValidator = null;
+        while (i.hasNext()) {
+            final ServiceDefinition<AnnotatedElementValidator> validator = i.next();
+            if (validator.isPresent()) {
+                try {
+                    elementValidator = validator.load();
+                } catch (Throwable e) {
+                    // probably missing required dependencies to load the validator
+                }
+                break;
+            }
+        }
+        this.javaAnnotationMetadataBuilder = newAnnotationBuilder();
+        this.elementValidator = elementValidator;
     }
 
     /**
      * Default constructor.
      *
+     * @param processingEnv     The processing env
      * @param elementUtils      The elements
      * @param messager          The messager
      * @param types             The types
      * @param modelUtils        The model utils
+     * @param genericUtils      The generic utils
      * @param filer             The filer
      */
     protected AnnotationUtils(
+            ProcessingEnvironment processingEnv,
             Elements elementUtils,
             Messager messager,
             Types types,
             ModelUtils modelUtils,
+            GenericUtils genericUtils,
             Filer filer) {
-        this(elementUtils, messager, types, modelUtils, filer, new MutableConvertibleValuesMap<>());
+        this(processingEnv, elementUtils, messager, types, modelUtils, genericUtils, filer, new MutableConvertibleValuesMap<>());
+    }
+
+    /**
+     * The {@link AnnotatedElementValidator} instance. Can be null.
+     * @return The validator instance
+     */
+    public @Nullable AnnotatedElementValidator getElementValidator() {
+        return elementValidator;
     }
 
     /**
@@ -151,16 +195,29 @@ public class AnnotationUtils {
      * @return The {@link AnnotationMetadata}
      */
     public AnnotationMetadata getAnnotationMetadata(Element element) {
-        AnnotationMetadata metadata = annotationMetadataCache.getIfPresent(element);
+        AnnotationMetadata metadata = annotationMetadataCache.get(element);
         if (metadata == null) {
-            metadata = newAnnotationBuilder().build(element);
+            metadata = javaAnnotationMetadataBuilder.buildOverridden(element);
             annotationMetadataCache.put(element, metadata);
         }
         return metadata;
     }
 
     /**
-     * Get the annotation metadata for the given element.
+     * Get the declared annotation metadata for the given element.
+     *
+     * @param element The element
+     * @return The {@link AnnotationMetadata}
+     */
+    public AnnotationMetadata getDeclaredAnnotationMetadata(Element element) {
+        return javaAnnotationMetadataBuilder.buildDeclared(element);
+    }
+
+    /**
+     * Get the annotation metadata for the given element and the given parent.
+     * This method is used for cases when you need to combine annotation metadata for
+     * two elements, for example a JavaBean property where the field and the method metadata
+     * need to be combined.
      *
      * @param parent  The parent
      * @param element The element
@@ -171,12 +228,30 @@ public class AnnotationUtils {
     }
 
     /**
+     * Get the annotation metadata for the given element and the given parents.
+     * This method is used for cases when you need to combine annotation metadata for
+     * two elements, for example a JavaBean property where the field and the method metadata
+     * need to be combined.
+     *
+     * @param parents The parents
+     * @param element The element
+     * @return The {@link AnnotationMetadata}
+     */
+    public AnnotationMetadata getAnnotationMetadata(List<Element> parents, Element element) {
+        return newAnnotationBuilder().buildForParents(parents, element);
+    }
+
+    /**
      * Check whether the method is annotated.
      *
+     * @param declaringType The declaring type
      * @param method The method
      * @return True if it is annotated with non internal annotations
      */
-    public boolean isAnnotated(ExecutableElement method) {
+    public boolean isAnnotated(String declaringType, ExecutableElement method) {
+        if (AbstractAnnotationMetadataBuilder.isMetadataMutated(declaringType, method)) {
+            return true;
+        }
         List<? extends AnnotationMirror> annotationMirrors = method.getAnnotationMirrors();
         for (AnnotationMirror annotationMirror : annotationMirrors) {
             String typeName = annotationMirror.getAnnotationType().toString();
@@ -197,9 +272,7 @@ public class AnnotationUtils {
                 elementUtils,
                 messager,
                 this,
-                types,
-                modelUtils,
-                filer
+                modelUtils
         );
     }
 
@@ -210,13 +283,16 @@ public class AnnotationUtils {
      */
     public JavaVisitorContext newVisitorContext() {
         return new JavaVisitorContext(
+                processingEnv,
                 messager,
                 elementUtils,
                 this,
                 types,
                 modelUtils,
+                genericUtils,
                 filer,
-                visitorAttributes
+                visitorAttributes,
+                TypeElementVisitor.VisitorKind.ISOLATING
         );
     }
 
@@ -225,7 +301,18 @@ public class AnnotationUtils {
      */
     @Internal
     static void invalidateCache() {
-        annotationMetadataCache.invalidateAll();
+        annotationMetadataCache.clear();
     }
 
+    /**
+     * Invalidates any cached metadata.
+     *
+     * @param element The element
+     */
+    @Internal
+    public static void invalidateMetadata(Element element) {
+        if (element != null) {
+            annotationMetadataCache.remove(element);
+        }
+    }
 }

@@ -1,5 +1,16 @@
+plugins {
+    id "io.micronaut.build.internal.convention-library"
+}
+
+internalSanityChecks {
+    expectedServiceCount.put('io.micronaut.inject.BeanDefinitionReference', 2)
+}           
+
 dependencies {
-    compile project(":core")
-    compileOnly project(":inject-java")
-    compile dependencyModuleVersion("netty", "netty-buffer")
+    api project(":core")
+    api project(":inject")
+    api libs.managed.netty.buffer
+    compileOnly libs.managed.graal
+
+    annotationProcessor project(":inject-java")
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,17 +13,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context;
 
 import io.micronaut.context.annotation.BootstrapContextCompatible;
+import io.micronaut.context.annotation.ConfigurationReader;
 import io.micronaut.context.annotation.EachBean;
 import io.micronaut.context.annotation.EachProperty;
 import io.micronaut.context.env.BootstrapPropertySourceLocator;
+import io.micronaut.context.env.CachedEnvironment;
 import io.micronaut.context.env.DefaultEnvironment;
 import io.micronaut.context.env.Environment;
 import io.micronaut.context.env.PropertySource;
 import io.micronaut.context.exceptions.ConfigurationException;
+import io.micronaut.core.annotation.AnnotationUtil;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.convert.TypeConverter;
@@ -32,22 +36,22 @@ import io.micronaut.core.io.scan.ClassPathResourceLoader;
 import io.micronaut.core.naming.Named;
 import io.micronaut.core.naming.conventions.StringConvention;
 import io.micronaut.core.type.Argument;
+import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.core.util.StringUtils;
 import io.micronaut.inject.BeanConfiguration;
 import io.micronaut.inject.BeanDefinition;
 import io.micronaut.inject.BeanDefinitionReference;
 import io.micronaut.inject.qualifiers.Qualifiers;
 
-import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -60,62 +64,95 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
 
     private final ConversionService conversionService;
     private final ClassPathResourceLoader resourceLoader;
+    private final ApplicationContextConfiguration configuration;
     private Environment environment;
-
-    private Iterable<BeanConfiguration> resolvedConfigurations;
-    private List<BeanDefinitionReference> resolvedBeanReferences;
 
     /**
      * Construct a new ApplicationContext for the given environment name.
      *
      * @param environmentNames The environment names
      */
-    public DefaultApplicationContext(String... environmentNames) {
-        this(ClassPathResourceLoader.defaultLoader(DefaultBeanContext.class.getClassLoader()), environmentNames);
+    public DefaultApplicationContext(@NonNull String... environmentNames) {
+        this(ClassPathResourceLoader.defaultLoader(DefaultApplicationContext.class.getClassLoader()), environmentNames);
     }
 
     /**
      * Construct a new ApplicationContext for the given environment name and classloader.
      *
-     * @param environmentNames The environment names
-     * @param resourceLoader   The class loader
+     * @param environmentNames   The environment names
+     * @param resourceLoader     The class loader
      */
-    public DefaultApplicationContext(ClassPathResourceLoader resourceLoader, String... environmentNames) {
-        super(resourceLoader);
+    public DefaultApplicationContext(@NonNull ClassPathResourceLoader resourceLoader, @NonNull String... environmentNames) {
+        this(new ApplicationContextConfiguration() {
+
+            @NonNull
+            @Override
+            public ClassLoader getClassLoader() {
+                return getResourceLoader().getClassLoader();
+            }
+
+            @Override
+            public @NonNull ClassPathResourceLoader getResourceLoader() {
+                ArgumentUtils.requireNonNull("resourceLoader", resourceLoader);
+                return resourceLoader;
+            }
+
+            @NonNull
+            @Override
+            public List<String> getEnvironments() {
+                ArgumentUtils.requireNonNull("environmentNames", environmentNames);
+                return Arrays.asList(environmentNames);
+            }
+        });
+    }
+
+    /**
+     * Construct a new ApplicationContext for the given environment name and classloader.
+     *
+     * @param configuration    The application context configuration
+     */
+    public DefaultApplicationContext(@NonNull ApplicationContextConfiguration configuration) {
+        super(configuration);
+        ArgumentUtils.requireNonNull("configuration", configuration);
+        this.configuration = configuration;
         this.conversionService = createConversionService();
-        this.resourceLoader = resourceLoader;
-        this.environment = createEnvironment(environmentNames);
+        this.resourceLoader = configuration.getResourceLoader();
     }
 
     @Override
-    public <T> ApplicationContext registerSingleton(Class<T> type, T singleton, Qualifier<T> qualifier, boolean inject) {
+    public @NonNull <T> ApplicationContext registerSingleton(@NonNull Class<T> type, @NonNull T singleton, @Nullable Qualifier<T> qualifier, boolean inject) {
         return (ApplicationContext) super.registerSingleton(type, singleton, qualifier, inject);
-    }
-
-    @Override
-    protected Iterable<BeanConfiguration> resolveBeanConfigurations() {
-        if (resolvedConfigurations != null) {
-            return resolvedConfigurations;
-        }
-        return super.resolveBeanConfigurations();
-    }
-
-    @Override
-    protected List<BeanDefinitionReference> resolveBeanDefinitionReferences() {
-        if (resolvedBeanReferences != null) {
-            return resolvedBeanReferences;
-        }
-        return super.resolveBeanDefinitionReferences();
     }
 
     /**
      * Creates the default environment for the given environment name.
      *
-     * @param environmentNames The environment name
+     * @param configuration The application context configuration
      * @return The environment instance
      */
-    protected DefaultEnvironment createEnvironment(String... environmentNames) {
-        return new RuntimeConfiguredEnvironment(environmentNames);
+    protected @NonNull Environment createEnvironment(@NonNull ApplicationContextConfiguration configuration) {
+        return new RuntimeConfiguredEnvironment(configuration, isBootstrapEnabled(configuration));
+    }
+
+    private boolean isBootstrapEnabled(ApplicationContextConfiguration configuration) {
+        String bootstrapContextProp = System.getProperty(Environment.BOOTSTRAP_CONTEXT_PROPERTY);
+        if (bootstrapContextProp != null) {
+            return Boolean.parseBoolean(bootstrapContextProp);
+        }
+        Boolean configBootstrapEnabled = configuration.isBootstrapEnvironmentEnabled();
+        if (configBootstrapEnabled != null) {
+            return configBootstrapEnabled;
+        }
+        return isBootstrapPropertySourceLocatorPresent();
+    }
+
+    private boolean isBootstrapPropertySourceLocatorPresent() {
+        for (BeanDefinitionReference beanDefinitionReference : resolveBeanDefinitionReferences()) {
+            if (BootstrapPropertySourceLocator.class.isAssignableFrom(beanDefinitionReference.getBeanType())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -123,28 +160,31 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
      *
      * @return The conversion service
      */
-    protected ConversionService createConversionService() {
+    protected @NonNull ConversionService createConversionService() {
         return ConversionService.SHARED;
     }
 
     @Override
-    public ConversionService<?> getConversionService() {
+    public @NonNull ConversionService<?> getConversionService() {
         return conversionService;
     }
 
     @Override
-    public Environment getEnvironment() {
+    public @NonNull Environment getEnvironment() {
+        if (environment == null) {
+            environment = createEnvironment(configuration);
+        }
         return environment;
     }
 
     @Override
-    public synchronized ApplicationContext start() {
+    public synchronized @NonNull ApplicationContext start() {
         startEnvironment();
         return (ApplicationContext) super.start();
     }
 
     @Override
-    public ApplicationContext stop() {
+    public synchronized @NonNull ApplicationContext stop() {
         return (ApplicationContext) super.stop();
     }
 
@@ -163,7 +203,13 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
         return getEnvironment().getProperty(name, conversionContext);
     }
 
-    @Nonnull
+    @NonNull
+    @Override
+    public Collection<String> getPropertyEntries(@NonNull String name) {
+        return getEnvironment().getPropertyEntries(name);
+    }
+
+    @NonNull
     @Override
     public Map<String, Object> getProperties(@Nullable String name, @Nullable StringConvention keyFormat) {
         return getEnvironment().getProperties(name, keyFormat);
@@ -183,94 +229,193 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
         Environment defaultEnvironment = getEnvironment();
         defaultEnvironment.start();
         registerSingleton(Environment.class, defaultEnvironment);
-        registerSingleton(new AnnotationProcessorListener());
     }
 
     @Override
-    protected void initializeContext(List<BeanDefinitionReference> contextScopeBeans, List<BeanDefinitionReference> processedBeans) {
+    protected void initializeContext(List<BeanDefinitionReference> contextScopeBeans, List<BeanDefinitionReference> processedBeans, List<BeanDefinitionReference> parallelBeans) {
         initializeTypeConverters(this);
-        super.initializeContext(contextScopeBeans, processedBeans);
+        super.initializeContext(contextScopeBeans, processedBeans, parallelBeans);
     }
 
     @Override
-    protected <T> Collection<BeanDefinition<T>> findBeanCandidates(Class<T> beanType, BeanDefinition<?> filter) {
-        Collection<BeanDefinition<T>> candidates = super.findBeanCandidates(beanType, filter);
+    protected <T> Collection<BeanDefinition<T>> findBeanCandidates(BeanResolutionContext resolutionContext, Argument<T> beanType, BeanDefinition<?> filter, boolean filterProxied) {
+        Collection<BeanDefinition<T>> candidates = super.findBeanCandidates(resolutionContext, beanType, filter, filterProxied);
+        return transformIterables(resolutionContext, candidates, filterProxied);
+    }
+
+    @Override
+    protected <T> Collection<BeanDefinition<T>> findBeanCandidates(BeanResolutionContext resolutionContext, Argument<T> beanType, boolean filterProxied, Predicate<BeanDefinition<T>> predicate) {
+        Collection<BeanDefinition<T>> candidates = super.findBeanCandidates(resolutionContext, beanType, filterProxied, predicate);
+        return transformIterables(resolutionContext, candidates, filterProxied);
+    }
+
+    @Override
+    protected <T> Collection<BeanDefinition<T>> transformIterables(BeanResolutionContext resolutionContext, Collection<BeanDefinition<T>> candidates, boolean filterProxied) {
         if (!candidates.isEmpty()) {
 
             List<BeanDefinition<T>> transformedCandidates = new ArrayList<>();
             for (BeanDefinition candidate : candidates) {
-                if (candidate.hasDeclaredStereotype(EachProperty.class)) {
+                if (candidate.isIterable()) {
+                    if (candidate.hasDeclaredStereotype(EachProperty.class)) {
+                        boolean isList = candidate.booleanValue(EachProperty.class, "list").orElse(false);
+                        String property = candidate.stringValue(ConfigurationReader.class, "prefix")
+                                .map(prefix ->
+                                        //strip the .* or [*]
+                                        prefix.substring(0, prefix.length() - (isList ? 3 : 2)))
+                                .orElseGet(() -> candidate.stringValue(EachProperty.class).orElse(null));
+                        String primaryPrefix = candidate.stringValue(EachProperty.class, "primary").orElse(null);
+                        if (StringUtils.isNotEmpty(property)) {
+                            if (isList) {
+                                List entries = getEnvironment().getProperty(property, List.class, Collections.emptyList());
+                                if (!entries.isEmpty()) {
+                                    for (int i = 0; i < entries.size(); i++) {
+                                        if (entries.get(i) != null) {
+                                            BeanDefinitionDelegate delegate = BeanDefinitionDelegate.create(candidate);
+                                            String index = String.valueOf(i);
+                                            if (primaryPrefix != null && primaryPrefix.equals(index)) {
+                                                delegate.put(BeanDefinitionDelegate.PRIMARY_ATTRIBUTE, true);
+                                            }
+                                            delegate.put("Array", index);
+                                            delegate.put(Named.class.getName(), index);
 
-                    String property = candidate.getValue(EachProperty.class, String.class).orElse(null);
-                    String primaryPrefix = candidate.getValue(EachProperty.class, "primary", String.class).orElse(null);
-
-                    if (StringUtils.isNotEmpty(property)) {
-                        Map entries = getProperty(property, Map.class, Collections.emptyMap());
-                        if (!entries.isEmpty()) {
-                            for (Object key : entries.keySet()) {
-                                BeanDefinitionDelegate delegate = BeanDefinitionDelegate.create(candidate);
-                                if (primaryPrefix != null && primaryPrefix.equals(key.toString())) {
-                                    delegate.put(BeanDefinitionDelegate.PRIMARY_ATTRIBUTE, true);
-                                }
-                                delegate.put(EachProperty.class.getName(), delegate.getBeanType());
-                                delegate.put(Named.class.getName(), key.toString());
-
-                                if (delegate.isEnabled(this)) {
-                                    transformedCandidates.add(delegate);
-                                }
-                            }
-                        }
-                    } else {
-                        throw new IllegalArgumentException("Blank value specified to @Each property for bean: " + candidate);
-                    }
-                } else if (candidate.hasDeclaredStereotype(EachBean.class)) {
-                    Class dependentType = candidate.getValue(EachBean.class, Class.class).orElse(null);
-                    if (dependentType == null) {
-                        transformedCandidates.add(candidate);
-                        continue;
-                    }
-
-                    Collection<BeanDefinition> dependentCandidates = findBeanCandidates(dependentType, null);
-                    if (!dependentCandidates.isEmpty()) {
-                        for (BeanDefinition dependentCandidate : dependentCandidates) {
-
-                            BeanDefinitionDelegate<?> delegate = BeanDefinitionDelegate.create(candidate);
-                            Optional<Qualifier> optional;
-                            if (dependentCandidate instanceof BeanDefinitionDelegate) {
-                                BeanDefinitionDelegate<?> parentDelegate = (BeanDefinitionDelegate) dependentCandidate;
-                                optional = parentDelegate.get(Named.class.getName(), String.class).map(Qualifiers::byName);
-                            } else {
-                                Optional<String> qualifierName = dependentCandidate.getAnnotationNameByStereotype(javax.inject.Qualifier.class);
-                                optional = qualifierName.map(name -> Qualifiers.byAnnotation(dependentCandidate, name));
-                            }
-
-                            if (dependentCandidate.isPrimary()) {
-                                delegate.put(BeanDefinitionDelegate.PRIMARY_ATTRIBUTE, true);
-                            }
-
-                            optional.ifPresent(qualifier -> {
-                                    String qualifierKey = javax.inject.Qualifier.class.getName();
-                                    Argument<?>[] arguments = candidate.getConstructor().getArguments();
-                                    for (Argument<?> argument : arguments) {
-                                        if (argument.getType().equals(dependentType)) {
-                                            Map<? extends Argument<?>, Qualifier> qualifedArg = Collections.singletonMap(argument, qualifier);
-                                            delegate.put(qualifierKey, qualifedArg);
-                                            break;
+                                            if (delegate.isEnabled(this, resolutionContext)) {
+                                                transformedCandidates.add(delegate);
+                                            }
                                         }
                                     }
+                                }
+                            } else {
+                                Collection<String> propertyEntries = getEnvironment().getPropertyEntries(property);
+                                if (!propertyEntries.isEmpty()) {
+                                    for (String key : propertyEntries) {
+                                        BeanDefinitionDelegate delegate = BeanDefinitionDelegate.create(candidate);
+                                        if (primaryPrefix != null && primaryPrefix.equals(key)) {
+                                            delegate.put(BeanDefinitionDelegate.PRIMARY_ATTRIBUTE, true);
+                                        }
+                                        delegate.put(EachProperty.class.getName(), delegate.getBeanType());
+                                        delegate.put(Named.class.getName(), key);
 
-                                    if (qualifier instanceof Named) {
-                                        delegate.put(Named.class.getName(), ((Named) qualifier).getName());
-                                    }
-                                    if (delegate.isEnabled(this)) {
-                                        transformedCandidates.add((BeanDefinition<T>) delegate);
+                                        if (delegate.isEnabled(this, resolutionContext)) {
+                                            transformedCandidates.add(delegate);
+                                        }
                                     }
                                 }
-                            );
+                            }
+                        } else {
+                            throw new IllegalArgumentException("Blank value specified to @Each property for bean: " + candidate);
+                        }
+                    } else if (candidate.hasDeclaredStereotype(EachBean.class)) {
+                        Class dependentType = candidate.classValue(EachBean.class).orElse(null);
+                        if (dependentType == null) {
+                            transformedCandidates.add(candidate);
+                            continue;
+                        }
+
+                        Collection<BeanDefinition> dependentCandidates = findBeanCandidates(resolutionContext, Argument.of(dependentType), filterProxied, null);
+
+                        if (!dependentCandidates.isEmpty()) {
+                            for (BeanDefinition dependentCandidate : dependentCandidates) {
+
+                                BeanDefinitionDelegate<?> delegate = BeanDefinitionDelegate.create(candidate);
+                                Optional<Qualifier> optional;
+                                if (dependentCandidate instanceof BeanDefinitionDelegate) {
+                                    BeanDefinitionDelegate<?> parentDelegate = (BeanDefinitionDelegate) dependentCandidate;
+                                    optional = parentDelegate.get(Named.class.getName(), String.class).map(Qualifiers::byName);
+                                } else {
+                                    Optional<String> qualifierName = dependentCandidate.getAnnotationNameByStereotype(AnnotationUtil.QUALIFIER);
+                                    optional = qualifierName.map(name -> Qualifiers.byAnnotation(dependentCandidate, name));
+                                }
+
+                                if (dependentCandidate.isPrimary()) {
+                                    delegate.put(BeanDefinitionDelegate.PRIMARY_ATTRIBUTE, true);
+                                }
+
+                                optional.ifPresent(qualifier -> {
+                                            String qualifierKey = AnnotationUtil.QUALIFIER;
+                                            Argument<?>[] arguments = candidate.getConstructor().getArguments();
+                                            for (Argument<?> argument : arguments) {
+                                                Class<?> argumentType = argument.getType();
+                                                if (argumentType.equals(dependentType)) {
+                                                    Map<? extends Argument<?>, Qualifier> qualifedArg = Collections.singletonMap(argument, qualifier);
+                                                    delegate.put(qualifierKey, qualifedArg);
+                                                    break;
+                                                }
+                                            }
+
+                                            if (qualifier instanceof Named) {
+                                                delegate.put(Named.class.getName(), ((Named) qualifier).getName());
+                                            }
+                                            if (delegate.isEnabled(this, resolutionContext)) {
+                                                transformedCandidates.add((BeanDefinition<T>) delegate);
+                                            }
+                                        }
+                                );
+                            }
                         }
                     }
                 } else {
-                    transformedCandidates.add(candidate);
+                    if (candidate.hasStereotype(ConfigurationReader.class)) {
+                        final String prefix = candidate.stringValue(ConfigurationReader.class, "prefix").orElse(null);
+                        if (prefix != null) {
+                            int mapIndex = prefix.indexOf("*");
+                            int arrIndex = prefix.indexOf("[*]");
+                            boolean isList = arrIndex > -1;
+                            boolean isMap = mapIndex > -1;
+                            if (isList || isMap) {
+                                int startIndex = isList ? arrIndex : mapIndex;
+                                String eachProperty = prefix.substring(0, startIndex);
+                                if (eachProperty.endsWith(".")) {
+                                    eachProperty = eachProperty.substring(0, eachProperty.length() - 1);
+                                }
+
+                                if (StringUtils.isNotEmpty(eachProperty)) {
+
+                                    if (isList) {
+                                        List entries = getProperty(eachProperty, List.class, Collections.emptyList());
+                                        if (!entries.isEmpty()) {
+                                            for (int i = 0; i < entries.size(); i++) {
+                                                if (entries.get(i) != null) {
+                                                    BeanDefinitionDelegate delegate = BeanDefinitionDelegate.create(candidate);
+                                                    String index = String.valueOf(i);
+                                                    delegate.put("Array", index);
+                                                    delegate.put(Named.class.getName(), index);
+
+                                                    if (delegate.isEnabled(this, resolutionContext) &&
+                                                            containsProperties(prefix.replace("*", index))) {
+                                                        transformedCandidates.add(delegate);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else {
+                                        Map entries = getProperty(eachProperty, Map.class, Collections.emptyMap());
+                                        if (!entries.isEmpty()) {
+                                            for (Object key : entries.keySet()) {
+
+                                                BeanDefinitionDelegate delegate = BeanDefinitionDelegate.create(candidate);
+                                                delegate.put(EachProperty.class.getName(), delegate.getBeanType());
+                                                delegate.put(Named.class.getName(), key.toString());
+
+                                                if (delegate.isEnabled(this, resolutionContext) &&
+                                                        containsProperties(prefix.replace("*", key.toString()))) {
+                                                    transformedCandidates.add(delegate);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                } else {
+                                    throw new IllegalArgumentException("Blank value specified to @Each property for bean: " + candidate);
+                                }
+                            } else {
+                                transformedCandidates.add(candidate);
+                            }
+                        } else {
+                            transformedCandidates.add(candidate);
+                        }
+                    } else {
+                        transformedCandidates.add(candidate);
+                    }
                 }
             }
             if (LOG.isDebugEnabled()) {
@@ -284,10 +429,7 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
     @Override
     protected <T> BeanDefinition<T> findConcreteCandidate(Class<T> beanType, Qualifier<T> qualifier, Collection<BeanDefinition<T>> candidates) {
         if (candidates.stream().allMatch(BeanDefinition::isIterable)) {
-            if (qualifier == null) {
-                Optional<BeanDefinition<T>> first = candidates.stream().findFirst();
-                return first.orElse(null);
-            } else if (qualifier instanceof Named) {
+            if (qualifier instanceof Named) {
                 Named named = (Named) qualifier;
                 String name = named.getName();
                 for (BeanDefinition<T> candidate : candidates) {
@@ -300,11 +442,9 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
                                 return delegate;
                             }
                         } else {
-                            Optional<Qualifier> resolvedQualifier = delegate.get(javax.inject.Qualifier.class.getName(), Qualifier.class);
-                            if (resolvedQualifier.isPresent()) {
-                                if (resolvedQualifier.get().equals(qualifier)) {
-                                    return delegate;
-                                }
+                            Optional<Qualifier> resolvedQualifier = delegate.get(AnnotationUtil.QUALIFIER, Qualifier.class);
+                            if (resolvedQualifier.isPresent() && resolvedQualifier.get().equals(qualifier)) {
+                                return delegate;
                             }
                         }
                     }
@@ -336,10 +476,8 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
             if (typeArguments.size() == 2) {
                 Class source = typeArguments.get(0).getType();
                 Class target = typeArguments.get(1).getType();
-                if (source != null && target != null) {
-                    if (!(source == Object.class && target == Object.class)) {
-                        getConversionService().addConverter(source, target, typeConverter);
-                    }
+                if (source != null && target != null && !(source == Object.class && target == Object.class)) {
+                    getConversionService().addConverter(source, target, typeConverter);
                 }
             }
         }
@@ -396,19 +534,86 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
      * Bootstrap environment.
      */
     private static class BootstrapEnvironment extends DefaultEnvironment {
-        BootstrapEnvironment(ClassPathResourceLoader resourceLoader, ConversionService conversionService, String... activeEnvironments) {
-            super(resourceLoader, conversionService, activeEnvironments);
+
+        private List<PropertySource> propertySourceList;
+
+        BootstrapEnvironment(ClassPathResourceLoader resourceLoader, ConversionService conversionService, ApplicationContextConfiguration configuration, String... activeEnvironments) {
+            super(new ApplicationContextConfiguration() {
+                @Override
+                public Optional<Boolean> getDeduceEnvironments() {
+                    return Optional.of(false);
+                }
+
+                @NonNull
+                @Override
+                public ClassLoader getClassLoader() {
+                    return resourceLoader.getClassLoader();
+                }
+
+                @NonNull
+                @Override
+                public List<String> getEnvironments() {
+                    return Arrays.asList(activeEnvironments);
+                }
+
+                @Override
+                public boolean isEnvironmentPropertySource() {
+                    return configuration.isEnvironmentPropertySource();
+                }
+
+                @Nullable
+                @Override
+                public List<String> getEnvironmentVariableIncludes() {
+                    return configuration.getEnvironmentVariableIncludes();
+                }
+
+                @Nullable
+                @Override
+                public List<String> getEnvironmentVariableExcludes() {
+                    return configuration.getEnvironmentVariableExcludes();
+                }
+
+                @NonNull
+                @Override
+                public ConversionService<?> getConversionService() {
+                    return conversionService;
+                }
+
+                @NonNull
+                @Override
+                public ClassPathResourceLoader getResourceLoader() {
+                    return resourceLoader;
+                }
+            });
         }
 
         @Override
         protected String getPropertySourceRootName() {
-            String bootstrapName = System.getProperty(BOOTSTRAP_NAME_PROPERTY);
+            String bootstrapName = CachedEnvironment.getProperty(BOOTSTRAP_NAME_PROPERTY);
             return StringUtils.isNotEmpty(bootstrapName) ? bootstrapName : BOOTSTRAP_NAME;
         }
 
         @Override
         protected boolean shouldDeduceEnvironments() {
             return false;
+        }
+
+        /**
+         * @return The refreshable property sources
+         */
+        public List<PropertySource> getRefreshablePropertySources() {
+            return refreshablePropertySources;
+        }
+
+        @Override
+        protected List<PropertySource> readPropertySourceList(String name) {
+            if (propertySourceList == null) {
+                propertySourceList = super.readPropertySourceList(name)
+                        .stream()
+                        .map(BootstrapPropertySource::new)
+                        .collect(Collectors.toList());
+            }
+            return propertySourceList;
         }
     }
 
@@ -424,33 +629,31 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
         }
 
         @Override
-        public Environment getEnvironment() {
+        public @NonNull Environment getEnvironment() {
+            return bootstrapEnvironment;
+        }
+
+        @NonNull
+        @Override
+        protected BootstrapEnvironment createEnvironment(@NonNull ApplicationContextConfiguration configuration) {
             return bootstrapEnvironment;
         }
 
         @Override
-        protected BootstrapEnvironment createEnvironment(String... environmentNames) {
-            return bootstrapEnvironment;
+        protected @NonNull List<BeanDefinitionReference> resolveBeanDefinitionReferences() {
+            List<BeanDefinitionReference> refs = DefaultApplicationContext.this.resolveBeanDefinitionReferences();
+            List<BeanDefinitionReference> beanDefinitionReferences = new ArrayList<>(100);
+            for (BeanDefinitionReference reference : refs) {
+                if (reference.isAnnotationPresent(BootstrapContextCompatible.class)) {
+                    beanDefinitionReferences.add(reference);
+                }
+            }
+            return beanDefinitionReferences;
         }
 
         @Override
-        protected List<BeanDefinitionReference> resolveBeanDefinitionReferences() {
-            List<BeanDefinitionReference> refs = super.resolveBeanDefinitionReferences();
-            // we cache the resolved beans in a local field to avoid the I/O cost of resolving them twice
-            // once for the bootstrap context and again for the main context
-            resolvedBeanReferences = refs;
-            return refs.stream()
-                        .filter(ref -> ref.isAnnotationPresent(BootstrapContextCompatible.class))
-                        .collect(Collectors.toList());
-        }
-
-        @Override
-        protected Iterable<BeanConfiguration> resolveBeanConfigurations() {
-            Iterable<BeanConfiguration> beanConfigurations = super.resolveBeanConfigurations();
-            // we cache the resolved configurations in a local field to avoid the I/O cost of resolving them twice
-            // once for the bootstrap context and again for the main context
-            resolvedConfigurations = beanConfigurations;
-            return beanConfigurations;
+        protected @NonNull Iterable<BeanConfiguration> resolveBeanConfigurations() {
+            return DefaultApplicationContext.this.resolveBeanConfigurations();
         }
 
         @Override
@@ -464,17 +667,17 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
         }
 
         @Override
-        protected void initializeContext(List<BeanDefinitionReference> contextScopeBeans, List<BeanDefinitionReference> processedBeans) {
+        protected void initializeContext(List<BeanDefinitionReference> contextScopeBeans, List<BeanDefinitionReference> processedBeans, List<BeanDefinitionReference> parallelBeans) {
             // no-op .. @Context scope beans are not started for bootstrap
         }
 
         @Override
-        protected void processParallelBeans() {
+        protected void processParallelBeans(List<BeanDefinitionReference> parallelBeans) {
             // no-op
         }
 
         @Override
-        public void publishEvent(Object event) {
+        public void publishEvent(@NonNull Object event) {
             // no-op .. the bootstrap context shouldn't publish events
         }
 
@@ -485,53 +688,61 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
      */
     private class RuntimeConfiguredEnvironment extends DefaultEnvironment {
 
-        private final boolean isRuntimeConfigured;
+        private final ApplicationContextConfiguration configuration;
         private BootstrapPropertySourceLocator bootstrapPropertySourceLocator;
         private BootstrapEnvironment bootstrapEnvironment;
+        private final boolean bootstrapEnabled;
 
-        RuntimeConfiguredEnvironment(String... environmentNames) {
-            super(DefaultApplicationContext.this.resourceLoader, DefaultApplicationContext.this.conversionService, environmentNames);
-            this.isRuntimeConfigured = Boolean.getBoolean(Environment.BOOTSTRAP_CONTEXT_PROPERTY) ||
-                    DefaultApplicationContext.this.resourceLoader.getResource(Environment.BOOTSTRAP_NAME + ".yml").isPresent() ||
-                    DefaultApplicationContext.this.resourceLoader.getResource(Environment.BOOTSTRAP_NAME + ".properties").isPresent();
+        RuntimeConfiguredEnvironment(ApplicationContextConfiguration configuration, boolean bootstrapEnabled) {
+            super(configuration);
+            this.configuration = configuration;
+            this.bootstrapEnabled = bootstrapEnabled;
         }
 
         boolean isRuntimeConfigured() {
-            return isRuntimeConfigured;
+            return bootstrapEnabled;
         }
 
         @Override
         public Environment stop() {
+            if (bootstrapEnvironment != null) {
+                bootstrapEnvironment.stop();
+            }
             return super.stop();
+        }
+
+        @Override
+        public Environment start() {
+            if (bootstrapEnvironment == null && isRuntimeConfigured()) {
+                bootstrapEnvironment = createBootstrapEnvironment(getActiveNames().toArray(new String[0]));
+                startBootstrapEnvironment();
+            }
+            return super.start();
         }
 
         @Override
         protected synchronized List<PropertySource> readPropertySourceList(String name) {
 
-            if (isRuntimeConfigured) {
-                if (LOG.isInfoEnabled()) {
-                    LOG.info("Reading Startup environment from bootstrap.yml");
-                }
+            if (bootstrapEnvironment != null) {
+                LOG.info("Reading bootstrap environment configuration");
 
-                Set<String> activeNames = getActiveNames();
-                String[] environmentNamesArray = activeNames.toArray(new String[0]);
-                if (this.bootstrapEnvironment == null) {
-                    this.bootstrapEnvironment = createBootstrapEnvironment(environmentNamesArray);
-                }
+                refreshablePropertySources.addAll(bootstrapEnvironment.getRefreshablePropertySources());
+
+                String[] environmentNamesArray = getActiveNames().toArray(new String[0]);
                 BootstrapPropertySourceLocator bootstrapPropertySourceLocator = resolveBootstrapPropertySourceLocator(environmentNamesArray);
 
                 for (PropertySource propertySource : bootstrapPropertySourceLocator.findPropertySources(bootstrapEnvironment)) {
                     addPropertySource(propertySource);
+                    refreshablePropertySources.add(propertySource);
                 }
 
                 Collection<PropertySource> bootstrapPropertySources = bootstrapEnvironment.getPropertySources();
                 for (PropertySource bootstrapPropertySource : bootstrapPropertySources) {
-                    addPropertySource(new BootstrapPropertySource(bootstrapPropertySource));
+                    addPropertySource(bootstrapPropertySource);
                 }
-                return super.readPropertySourceList(name);
-            } else {
-                return super.readPropertySourceList(name);
+
             }
+            return super.readPropertySourceList(name);
         }
 
         private BootstrapPropertySourceLocator resolveBootstrapPropertySourceLocator(String... environmentNames) {
@@ -550,11 +761,14 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
         }
 
         private BootstrapEnvironment createBootstrapEnvironment(String... environmentNames) {
-            BootstrapEnvironment bootstrapEnvironment = new BootstrapEnvironment(
-                resourceLoader,
-                conversionService,
-                environmentNames);
+            return new BootstrapEnvironment(
+                    resourceLoader,
+                    conversionService,
+                    configuration,
+                    environmentNames);
+        }
 
+        private void startBootstrapEnvironment() {
             for (PropertySource source : propertySources.values()) {
                 bootstrapEnvironment.addPropertySource(source);
             }
@@ -562,8 +776,6 @@ public class DefaultApplicationContext extends DefaultBeanContext implements App
             for (String pkg : bootstrapEnvironment.getPackages()) {
                 addPackage(pkg);
             }
-
-            return bootstrapEnvironment;
         }
     }
 }

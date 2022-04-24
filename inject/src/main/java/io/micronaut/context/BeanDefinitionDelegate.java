@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context;
 
-import io.micronaut.context.annotation.EachProperty;
 import io.micronaut.context.annotation.Primary;
 import io.micronaut.context.exceptions.BeanInstantiationException;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.convert.ArgumentConversionContext;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.naming.NameResolver;
@@ -29,9 +29,7 @@ import io.micronaut.core.value.ValueResolver;
 import io.micronaut.inject.*;
 import io.micronaut.inject.qualifiers.Qualifiers;
 
-import java.lang.annotation.Annotation;
 import java.util.*;
-import java.util.stream.Stream;
 
 /**
  * A delegate bean definition.
@@ -46,23 +44,21 @@ class BeanDefinitionDelegate<T> extends AbstractBeanContextConditional implement
     static final String PRIMARY_ATTRIBUTE = Primary.class.getName();
 
     protected final BeanDefinition<T> definition;
-    protected final Map<String, Object> attributes = new HashMap<>();
+    protected final Map<String, Object> attributes = new HashMap<>(2);
 
     private BeanDefinitionDelegate(BeanDefinition<T> definition) {
-        if (!(definition instanceof BeanFactory)) {
-            throw new IllegalArgumentException("Delegate can only be used for bean factories");
-        }
         this.definition = definition;
     }
 
+    @Nullable
     @Override
-    public boolean isAbstract() {
-        return definition.isAbstract();
-    }
-
-    @Override
-    public boolean isProxy() {
-        return definition.isProxy();
+    public Qualifier<T> resolveDynamicQualifier() {
+        Qualifier<T> qualifier = null;
+        Object o = attributes.get(NAMED_ATTRIBUTE);
+        if (o instanceof CharSequence) {
+            qualifier = Qualifiers.byName(o.toString());
+        }
+        return qualifier;
     }
 
     /**
@@ -73,119 +69,61 @@ class BeanDefinitionDelegate<T> extends AbstractBeanContextConditional implement
     }
 
     @Override
-    public Optional<Class<? extends Annotation>> getScope() {
-        return definition.getScope();
-    }
-
-    @Override
-    public boolean isSingleton() {
-        return definition.isSingleton();
-    }
-
-    @Override
-    public boolean isProvided() {
-        return definition.isProvided();
+    public boolean isProxy() {
+        return definition.isProxy();
     }
 
     @Override
     public boolean isIterable() {
-        return get(EachProperty.class.getName(), Class.class) != null || definition.isIterable();
+        return definition.isIterable();
     }
 
     @Override
     public boolean isPrimary() {
-        return definition.isPrimary() || get(PRIMARY_ATTRIBUTE, Boolean.class).orElse(false);
+        return definition.isPrimary() || isPrimaryThroughAttribute();
     }
 
-    @Override
-    public Class<T> getBeanType() {
-        return definition.getBeanType();
-    }
-
-    @Override
-    public Optional<Class<?>> getDeclaringType() {
-        return definition.getDeclaringType();
-    }
-
-    @Override
-    public ConstructorInjectionPoint<T> getConstructor() {
-        return definition.getConstructor();
-    }
-
-    @Override
-    public Collection<Class> getRequiredComponents() {
-        return definition.getRequiredComponents();
-    }
-
-    @Override
-    public Collection<MethodInjectionPoint> getInjectedMethods() {
-        return definition.getInjectedMethods();
-    }
-
-    @Override
-    public Collection<FieldInjectionPoint> getInjectedFields() {
-        return definition.getInjectedFields();
-    }
-
-    @Override
-    public Collection<MethodInjectionPoint> getPostConstructMethods() {
-        return definition.getPostConstructMethods();
-    }
-
-    @Override
-    public Collection<MethodInjectionPoint> getPreDestroyMethods() {
-        return definition.getPreDestroyMethods();
-    }
-
-    @Override
-    public String getName() {
-        return definition.getName();
-    }
-
-    @Override
-    public <R> Optional<ExecutableMethod<T, R>> findMethod(String name, Class[] argumentTypes) {
-        return definition.findMethod(name, argumentTypes);
-    }
-
-    @Override
-    public <R> Stream<ExecutableMethod<T, R>> findPossibleMethods(String name) {
-        return definition.findPossibleMethods(name);
-    }
-
-    @Override
-    public T inject(BeanContext context, T bean) {
-        return definition.inject(context, bean);
-    }
-
-    @Override
-    public T inject(BeanResolutionContext resolutionContext, BeanContext context, T bean) {
-        return definition.inject(resolutionContext, context, bean);
-    }
-
-    @Override
-    public Collection<ExecutableMethod<T, ?>> getExecutableMethods() {
-        return definition.getExecutableMethods();
+    private boolean isPrimaryThroughAttribute() {
+        Object o = attributes.get(PRIMARY_ATTRIBUTE);
+        if (o instanceof Boolean) {
+            return (Boolean) o;
+        }
+        return false;
     }
 
     @Override
     public T build(BeanResolutionContext resolutionContext, BeanContext context, BeanDefinition<T> definition) throws BeanInstantiationException {
-        resolutionContext.putAll(attributes);
+        LinkedHashMap<String, Object> oldAttributes = null;
+        if (!attributes.isEmpty()) {
+            LinkedHashMap<String, Object> oldAttrs = new LinkedHashMap<>(attributes.size());
+            attributes.forEach((key, value) -> {
+                Object previous = resolutionContext.setAttribute(key, value);
+                if (previous != null) {
+                    oldAttrs.put(key, previous);
+                }
+            });
+            oldAttributes = oldAttrs;
+        }
+
         try {
             if (this.definition instanceof ParametrizedBeanFactory) {
                 ParametrizedBeanFactory<T> parametrizedBeanFactory = (ParametrizedBeanFactory<T>) this.definition;
                 Argument[] requiredArguments = parametrizedBeanFactory.getRequiredArguments();
                 Object named = attributes.get(Named.class.getName());
                 if (named != null) {
-                    Map<String, Object> fulfilled = new LinkedHashMap<>();
+                    Map<String, Object> fulfilled = new LinkedHashMap<>(requiredArguments.length);
                     for (Argument argument : requiredArguments) {
-                        Class argumentType = argument.getType();
-                        Optional result = ConversionService.SHARED.convert(named, argumentType);
+                        Optional result = ConversionService.SHARED.convert(named, argument);
                         String argumentName = argument.getName();
                         if (result.isPresent()) {
                             fulfilled.put(argumentName, result.get());
                         } else {
-                            // attempt bean lookup to full argument
-                            Optional bean = context.findBean(argumentType, Qualifiers.byName(named.toString()));
+                            Qualifier qualifier = Qualifiers.byName(named.toString());
+                            Optional bean;
+                            try (BeanResolutionContext.Path ignored = resolutionContext.getPath()
+                                    .pushConstructorResolve(definition, argument)) {
+                                bean = ((DefaultBeanContext) context).findBean(resolutionContext, argument, qualifier);
+                            }
                             if (bean.isPresent()) {
                                 fulfilled.put(argumentName, bean.get());
                             }
@@ -194,10 +132,17 @@ class BeanDefinitionDelegate<T> extends AbstractBeanContextConditional implement
                     return parametrizedBeanFactory.build(resolutionContext, context, definition, fulfilled);
                 }
             }
-            return ((BeanFactory<T>) this.definition).build(resolutionContext, context, definition);
+            if (this.definition instanceof BeanFactory) {
+                return ((BeanFactory<T>) this.definition).build(resolutionContext, context, definition);
+            } else {
+                throw new IllegalStateException("Cannot construct a dynamically registered singleton");
+            }
         } finally {
             for (String key : attributes.keySet()) {
-                resolutionContext.remove(key);
+                resolutionContext.removeAttribute(key);
+            }
+            if (oldAttributes != null) {
+                oldAttributes.forEach(resolutionContext::setAttribute);
             }
         }
     }
@@ -223,6 +168,7 @@ class BeanDefinitionDelegate<T> extends AbstractBeanContextConditional implement
     /**
      * @return The bean definition type
      */
+    @Override
     public BeanDefinition<T> getTarget() {
         return definition;
     }
@@ -274,6 +220,12 @@ class BeanDefinitionDelegate<T> extends AbstractBeanContextConditional implement
         return new BeanDefinitionDelegate<>(definition);
     }
 
+    @Override
+    @NonNull
+    public String getName() {
+        return definition.getName();
+    }
+
     /**
      * @param <T> The bean definition type
      */
@@ -313,6 +265,20 @@ class BeanDefinitionDelegate<T> extends AbstractBeanContextConditional implement
                 return ((ValidatedBeanDefinition<T>) definition).validate(resolutionContext, instance);
             }
             return instance;
+        }
+
+        @Override
+        default <V> void validateBeanArgument(@NonNull BeanResolutionContext resolutionContext, @NonNull InjectionPoint injectionPoint, @NonNull Argument<V> argument, int index, @Nullable V value) {
+            BeanDefinition<T> definition = getTarget();
+            if (definition instanceof ValidatedBeanDefinition) {
+                ((ValidatedBeanDefinition<T>) definition).validateBeanArgument(
+                        resolutionContext,
+                        injectionPoint,
+                        argument,
+                        index,
+                        value
+                );
+            }
         }
     }
 

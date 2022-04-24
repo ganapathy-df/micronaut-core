@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -15,18 +15,19 @@
  */
 package io.micronaut.inject.value.factorywithvalue;
 
-import io.micronaut.context.annotation.Bean;
 import io.micronaut.context.annotation.Factory;
+import io.micronaut.context.annotation.Prototype;
 import io.micronaut.context.annotation.Value;
 
 @Factory
 public class MyFactory {
-    @Bean
+
+    @Prototype
     public A newA(@Value("${foo.bar}") int port) {
         return new A(port);
     }
 
-    @Bean
+    @Prototype
     public B newB(A a, @Value("${foo.bar}") int port) {
         return new B(a, port);
     }

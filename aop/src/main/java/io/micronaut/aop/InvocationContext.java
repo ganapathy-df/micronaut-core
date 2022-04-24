@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,11 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.aop;
 
 import io.micronaut.core.annotation.AnnotationMetadataDelegate;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.core.attr.MutableAttributeHolder;
+import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.ArgumentValue;
 import io.micronaut.core.type.Executable;
 import io.micronaut.core.type.MutableArgumentValue;
@@ -42,14 +44,18 @@ import java.util.Map;
 public interface InvocationContext<T, R> extends Executable<T, R>, AnnotationMetadataDelegate, MutableAttributeHolder {
 
     /**
+     * Returns the current parameters as a map of mutable argument values. This method allows mutation of the argument values
+     * and is generally more expensive than using {@link #getParameterValues()} and {@link #getArguments()} directly, hence
+     * should be used with care.
+     *
      * @return The bound {@link ArgumentValue} instances
      */
-    Map<String, MutableArgumentValue<?>> getParameters();
+    @NonNull Map<String, MutableArgumentValue<?>> getParameters();
 
     /**
      * @return The target object
      */
-    T getTarget();
+    @NonNull T getTarget();
 
     /**
      * Proceeds with the invocation. If this is the last interceptor in the chain then the final implementation method is invoked
@@ -57,7 +63,7 @@ public interface InvocationContext<T, R> extends Executable<T, R>, AnnotationMet
      * @return The return value of the method
      * @throws RuntimeException chain may throw RTE
      */
-    R proceed() throws RuntimeException;
+    @Nullable R proceed() throws RuntimeException;
 
     /**
      * Proceeds with the invocation using the given interceptor as a position to start from. Mainly useful for {@link Introduction} advise where you want to
@@ -67,11 +73,25 @@ public interface InvocationContext<T, R> extends Executable<T, R>, AnnotationMet
      * @return The return value of the method
      * @throws RuntimeException chain may throw RTE
      */
-    R proceed(Interceptor from) throws RuntimeException;
+    @Nullable R proceed(Interceptor from) throws RuntimeException;
+
+    /**
+     * @return An enum representing the kind of interception that is occurring.
+     * @since 3.0.0
+     */
+    default @NonNull InterceptorKind getKind() {
+        return InterceptorKind.AROUND;
+    }
 
     @SuppressWarnings("unchecked")
     @Override
-    default InvocationContext<T, R> setAttribute(CharSequence name, Object value) {
+    default Class<T> getDeclaringType() {
+        return (Class<T>) getTarget().getClass();
+    }
+
+    @SuppressWarnings("unchecked")
+    @Override
+    default InvocationContext<T, R> setAttribute(@NonNull CharSequence name, Object value) {
         return (InvocationContext<T, R>) MutableAttributeHolder.super.setAttribute(name, value);
     }
 
@@ -81,7 +101,7 @@ public interface InvocationContext<T, R> extends Executable<T, R>, AnnotationMet
      *
      * @return The bound {@link ArgumentValue} instances
      */
-    default Object[] getParameterValues() {
+    default @NonNull Object[] getParameterValues() {
         return getParameters()
             .values()
             .stream()
@@ -90,18 +110,18 @@ public interface InvocationContext<T, R> extends Executable<T, R>, AnnotationMet
     }
 
     /**
-     * Returns the current state of the parameters as an array by parameter index. Note that mutations to the array have no effect.
-     * If you wish to mutate the parameters use {@link #getParameters()} and the {@link MutableArgumentValue} interface instead
+     * Returns the current state of the parameters as a map keyed by parameter name.
      *
-     * @return The bound {@link ArgumentValue} instances
+     * @return A map of parameter names to values
      */
-    default Map<String, Object> getParameterValueMap() {
-        Map<String, MutableArgumentValue<?>> parameters = getParameters();
-        Map<String, Object> valueMap = new LinkedHashMap<>(parameters.size());
-        for (Map.Entry<String, MutableArgumentValue<?>> entry : parameters.entrySet()) {
-            MutableArgumentValue<?> value = entry.getValue();
-            String key = entry.getKey();
-            valueMap.put(key, value.getValue());
+    default @NonNull Map<String, Object> getParameterValueMap() {
+        Argument<?>[] arguments = getArguments();
+        Object[] parameterValues = getParameterValues();
+        Map<String, Object> valueMap = new LinkedHashMap<>(arguments.length);
+        for (int i = 0; i < parameterValues.length; i++) {
+            Object parameterValue = parameterValues[i];
+            Argument arg = arguments[i];
+            valueMap.put(arg.getName(), parameterValue);
         }
         return valueMap;
     }

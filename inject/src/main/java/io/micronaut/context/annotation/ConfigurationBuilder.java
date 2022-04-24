@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,8 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.context.annotation;
+
+import io.micronaut.core.annotation.AccessorsStyle;
 
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
@@ -49,8 +50,9 @@ public @interface ConfigurationBuilder {
      * operations with the word "with" by setting the value of this attribute to "with" you can process methods such
      * as {@code withDebug(true)}</p>
      *
-     * @return The write prefix to use
+     * @return The write prefixes to use
      */
+    @AliasFor(annotation = AccessorsStyle.class, member = "writePrefixes")
     String[] prefixes() default "set";
 
     /**

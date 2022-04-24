@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ class InjectWithWildcardSpec extends Specification {
 
     void "test that wild card injection doesn't produce a ClassNotFoundException"() {
         given:
-        ApplicationContext context = new DefaultApplicationContext("test").start()
+        ApplicationContext context = ApplicationContext.run()
 
         expect:
         context.getBean(WildCardInject) instanceof WildCardInject

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,11 @@ package io.micronaut.inject.method.qualifierinjection
 
 import io.micronaut.context.BeanContext
 import io.micronaut.context.DefaultBeanContext
-import io.micronaut.inject.AbstractTypeElementSpec
+import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
+import io.micronaut.core.annotation.AnnotationUtil
 import io.micronaut.inject.BeanDefinition
 
-import javax.inject.Qualifier
+import jakarta.inject.Qualifier
 
 class SetterWithQualifierSpec extends AbstractTypeElementSpec {
 
@@ -31,10 +32,11 @@ class SetterWithQualifierSpec extends AbstractTypeElementSpec {
 package test;
 import io.micronaut.inject.qualifiers.One;
 
-import javax.inject.Singleton;
-import javax.inject.Inject;
-import javax.inject.Named;
+import jakarta.inject.Singleton;
+import jakarta.inject.Inject;
+import jakarta.inject.Named;
 
+@Singleton
 class MyBean {
     private A a;
     private A a2;
@@ -80,8 +82,8 @@ class TwoA implements A {
 ''')
         then:"the state is correct"
         beanDefinition.injectedMethods.size() == 2
-        beanDefinition.injectedMethods[0].arguments[0].getAnnotationMetadata().getAnnotationTypeByStereotype(Qualifier).isPresent()
-        beanDefinition.injectedMethods[1].arguments[0].getAnnotationMetadata().getAnnotationTypeByStereotype(Qualifier).isPresent()
+        beanDefinition.injectedMethods[0].arguments[0].getAnnotationMetadata().getAnnotationNameByStereotype(AnnotationUtil.QUALIFIER).isPresent()
+        beanDefinition.injectedMethods[1].arguments[0].getAnnotationMetadata().getAnnotationNameByStereotype(AnnotationUtil.QUALIFIER).isPresent()
     }
 
     void "test that a property with a qualifier is injected correctly"() {

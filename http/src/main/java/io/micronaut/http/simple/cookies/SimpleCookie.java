@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,12 +13,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.simple.cookies;
 
 import io.micronaut.http.cookie.Cookie;
+import io.micronaut.http.cookie.SameSite;
 
+import io.micronaut.core.annotation.NonNull;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * Simple {@link Cookie} implementation.
@@ -35,6 +37,7 @@ public class SimpleCookie implements Cookie {
     private boolean httpOnly;
     private boolean secure;
     private long maxAge;
+    private SameSite sameSite;
 
     /**
      * Constructor.
@@ -48,12 +51,12 @@ public class SimpleCookie implements Cookie {
     }
 
     @Override
-    public String getName() {
+    public @NonNull String getName() {
         return name;
     }
 
     @Override
-    public String getValue() {
+    public @NonNull String getValue() {
         return value;
     }
 
@@ -83,37 +86,48 @@ public class SimpleCookie implements Cookie {
     }
 
     @Override
-    public Cookie maxAge(long maxAge) {
+    public Optional<SameSite> getSameSite() {
+         return Optional.ofNullable(sameSite);
+    }
+
+    @Override
+    public @NonNull Cookie sameSite(SameSite sameSite) {
+        this.sameSite = sameSite;
+        return this;
+    }
+
+    @Override
+    public @NonNull Cookie maxAge(long maxAge) {
         this.maxAge = maxAge;
         return this;
     }
 
     @Override
-    public Cookie value(String value) {
+    public @NonNull Cookie value(@NonNull String value) {
         this.value = value;
         return this;
     }
 
     @Override
-    public Cookie domain(String domain) {
+    public @NonNull Cookie domain(String domain) {
         this.domain = domain;
         return this;
     }
 
     @Override
-    public Cookie path(String path) {
+    public @NonNull Cookie path(String path) {
         this.path = path;
         return this;
     }
 
     @Override
-    public Cookie secure(boolean secure) {
+    public @NonNull Cookie secure(boolean secure) {
         this.secure = secure;
         return this;
     }
 
     @Override
-    public Cookie httpOnly(boolean httpOnly) {
+    public @NonNull Cookie httpOnly(boolean httpOnly) {
         this.httpOnly = httpOnly;
         return this;
     }
@@ -144,14 +158,11 @@ public class SimpleCookie implements Cookie {
         }
 
         if (getDomain() == null) {
-            if (that.getDomain() != null) {
-                return false;
-            }
+            return that.getDomain() == null;
         } else {
             return getDomain().equalsIgnoreCase(that.getDomain());
         }
 
-        return true;
     }
 
     @Override
@@ -217,6 +228,9 @@ public class SimpleCookie implements Cookie {
         }
         if (isHttpOnly()) {
             buf.append(", HTTPOnly");
+        }
+        if (getSameSite().isPresent()) {
+            buf.append(", SameSite=").append(getSameSite().get());
         }
         return buf.toString();
     }

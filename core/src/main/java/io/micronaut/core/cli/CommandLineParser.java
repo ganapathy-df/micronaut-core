@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.cli;
 
 import io.micronaut.core.annotation.Internal;
@@ -40,7 +39,7 @@ class CommandLineParser implements CommandLine.Builder<CommandLineParser> {
 
     private static final String DEFAULT_PADDING = "        ";
 
-    private Map<String, Option> declaredOptions = new HashMap<String, Option>();
+    private Map<String, Option> declaredOptions = new HashMap<>();
     private int longestOptionNameLength = 0;
     private String usageMessage;
 
@@ -80,7 +79,7 @@ class CommandLineParser implements CommandLine.Builder<CommandLineParser> {
      * @return commandLine
      */
     CommandLine parse(DefaultCommandLine cl, String[] args) {
-        parseInternal(cl, args, true);
+        parseInternal(cl, args);
         return cl;
     }
 
@@ -106,7 +105,7 @@ class CommandLineParser implements CommandLine.Builder<CommandLineParser> {
         return sb.toString();
     }
 
-    private void parseInternal(DefaultCommandLine cl, String[] args, boolean firstArgumentIsCommand) {
+    private void parseInternal(DefaultCommandLine cl, String[] args) {
         cl.setRawArguments(args);
         String lastOptionName = null;
         for (String arg : args) {
@@ -164,10 +163,10 @@ class CommandLineParser implements CommandLine.Builder<CommandLineParser> {
         arg = (arg.charAt(1) == '-' ? arg.substring(2, arg.length()) : arg.substring(1, arg.length())).trim();
 
         if (arg.contains("=")) {
-            String[] split = arg.split("=");
+            String[] split = arg.split("=", 2);
             String name = split[0].trim();
             validateOptionName(name);
-            String value = split[1].trim();
+            String value = split.length > 1 ? split[1].trim() : "";
             if (declaredOptions.containsKey(name)) {
                 cl.addDeclaredOption(declaredOptions.get(name), value);
             } else {
@@ -191,7 +190,7 @@ class CommandLineParser implements CommandLine.Builder<CommandLineParser> {
      * @param arg system arg
      */
     protected void processSystemArg(DefaultCommandLine cl, String arg) {
-        int i = arg.indexOf("=");
+        int i = arg.indexOf('=');
         String name = arg.substring(2, i);
         String value = arg.substring(i + 1, arg.length());
         cl.addSystemProperty(name, value);
@@ -222,7 +221,7 @@ class CommandLineParser implements CommandLine.Builder<CommandLineParser> {
         final int inDoubleQuote = 2;
         int state = normal;
         final StringTokenizer tok = new StringTokenizer(toProcess, "\"\' ", true);
-        final ArrayList<String> result = new ArrayList<String>();
+        final ArrayList<String> result = new ArrayList<>();
         final StringBuilder current = new StringBuilder();
         boolean lastTokenHasBeenQuoted = false;
 
@@ -268,6 +267,6 @@ class CommandLineParser implements CommandLine.Builder<CommandLineParser> {
         if (state == inQuote || state == inDoubleQuote) {
             throw new ParseException("unbalanced quotes in " + toProcess);
         }
-        return result.toArray(new String[result.size()]);
+        return result.toArray(new String[0]);
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,21 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.health;
 
-import io.micronaut.context.annotation.Requires;
-import io.micronaut.context.env.Environment;
 import io.micronaut.context.event.ApplicationEventListener;
 import io.micronaut.context.event.ApplicationEventPublisher;
 import io.micronaut.discovery.ServiceInstance;
-import io.micronaut.discovery.event.ServiceStartedEvent;
-import io.micronaut.runtime.ApplicationConfiguration;
-import io.micronaut.runtime.server.EmbeddedServer;
+import io.micronaut.discovery.event.ServiceReadyEvent;
 import io.micronaut.scheduling.annotation.Scheduled;
+import jakarta.inject.Singleton;
 
-import javax.inject.Singleton;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * A scheduled task that sends a periodic heartbeat whilst the server is active.
@@ -36,16 +32,12 @@ import java.util.concurrent.atomic.AtomicReference;
  * @since 1.0
  */
 @Singleton
-@Requires(property = "micronaut.heartbeat.enabled", value = "true", defaultValue = "true")
-@Requires(property = ApplicationConfiguration.APPLICATION_NAME)
-@Requires(beans = EmbeddedServer.class)
-@Requires(notEnv = Environment.ANDROID)
-public class HeartbeatTask implements ApplicationEventListener<ServiceStartedEvent> {
+@HeartbeatEnabled
+public class HeartbeatTask implements ApplicationEventListener<ServiceReadyEvent> {
 
-    private AtomicReference<ServiceInstance> eventReference = new AtomicReference<>();
+    private final Set<ServiceInstance> eventsReference = ConcurrentHashMap.newKeySet();
 
     private final ApplicationEventPublisher eventPublisher;
-    private final HeartbeatConfiguration configuration;
     private final CurrentHealthStatus currentHealthStatus;
 
     /**
@@ -55,7 +47,6 @@ public class HeartbeatTask implements ApplicationEventListener<ServiceStartedEve
      */
     public HeartbeatTask(ApplicationEventPublisher eventPublisher, HeartbeatConfiguration configuration, CurrentHealthStatus currentHealthStatus) {
         this.eventPublisher = eventPublisher;
-        this.configuration = configuration;
         this.currentHealthStatus = currentHealthStatus;
     }
 
@@ -65,14 +56,13 @@ public class HeartbeatTask implements ApplicationEventListener<ServiceStartedEve
     @Scheduled(fixedDelay = "${micronaut.heartbeat.interval:15s}",
                initialDelay = "${micronaut.heartbeat.initial-delay:5s}")
     public void pulsate() {
-        ServiceInstance instance = eventReference.get();
-        if (instance != null) {
+        for (ServiceInstance instance : eventsReference) {
             eventPublisher.publishEvent(new HeartbeatEvent(instance, currentHealthStatus.current()));
         }
     }
 
     @Override
-    public void onApplicationEvent(ServiceStartedEvent event) {
-        eventReference.set(event.getSource());
+    public void onApplicationEvent(ServiceReadyEvent event) {
+        eventsReference.add(event.getSource());
     }
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,22 +13,25 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.ast.groovy
 
+import groovy.transform.CompilationUnitAware
 import groovy.transform.CompileStatic
 import io.micronaut.ast.groovy.utils.AstMessageUtils
 import io.micronaut.ast.groovy.visitor.GroovyVisitorContext
 import io.micronaut.ast.groovy.visitor.LoadedVisitor
 import io.micronaut.context.annotation.Requires
+import io.micronaut.context.env.CachedEnvironment
 import io.micronaut.core.io.service.ServiceDefinition
 import io.micronaut.core.io.service.SoftServiceLoader
+import io.micronaut.core.order.OrderUtil
 import io.micronaut.core.reflect.InstantiationUtils
 import io.micronaut.core.util.StringUtils
 import io.micronaut.core.version.VersionUtils
 import io.micronaut.inject.visitor.TypeElementVisitor
 import org.codehaus.groovy.ast.ASTNode
 import org.codehaus.groovy.ast.ModuleNode
+import org.codehaus.groovy.control.CompilationUnit
 import org.codehaus.groovy.control.CompilePhase
 import org.codehaus.groovy.control.SourceUnit
 import org.codehaus.groovy.transform.ASTTransformation
@@ -42,13 +45,14 @@ import org.codehaus.groovy.transform.GroovyASTTransformation
  */
 @CompileStatic
 @GroovyASTTransformation(phase = CompilePhase.INITIALIZATION)
-class TypeElementVisitorStart implements ASTTransformation {
+class TypeElementVisitorStart implements ASTTransformation, CompilationUnitAware {
 
     public static final String ELEMENT_VISITORS_PROPERTY = "micronaut.element.visitors"
+    private CompilationUnit compilationUnit
 
     @Override
     void visit(ASTNode[] nodes, SourceUnit source) {
-        Map<String, LoadedVisitor> loadedVisitors = TypeElementVisitorTransform.loadedVisitors
+        Map<String, LoadedVisitor> loadedVisitors = TypeElementVisitorTransform.loadedVisitors.get()
 
         if (loadedVisitors == null) {
             loadedVisitors = [:]
@@ -77,7 +81,7 @@ class TypeElementVisitorStart implements ASTTransformation {
                         }
                     }
                     try {
-                        LoadedVisitor newLoadedVisitor = new LoadedVisitor(source, visitor)
+                        LoadedVisitor newLoadedVisitor = new LoadedVisitor(source, compilationUnit, visitor)
                         loadedVisitors.put(definition.getName(), newLoadedVisitor)
                     } catch (TypeNotPresentException e) {
                         // skip, all classes not on classpath
@@ -90,20 +94,10 @@ class TypeElementVisitorStart implements ASTTransformation {
             }
 
 
-            def val = System.getProperty(ELEMENT_VISITORS_PROPERTY)
-            if (val) {
-                for (v in val.split(",")) {
-                    def visitor = InstantiationUtils.tryInstantiate(v, source.classLoader).orElse(null)
-                    if (visitor instanceof TypeElementVisitor) {
-                        LoadedVisitor newLoadedVisitor = new LoadedVisitor(source, visitor)
-                        loadedVisitors.put(visitor.getClass().getName(), newLoadedVisitor)
-                    }
-                }
-            }
-
-
-            def visitorContext = new GroovyVisitorContext(source)
-            for(loadedVisitor in loadedVisitors.values()) {
+            def visitorContext = new GroovyVisitorContext(source, compilationUnit)
+            List<LoadedVisitor> values = new ArrayList<>(loadedVisitors.values())
+            OrderUtil.reverseSort(values)
+            for(loadedVisitor in (values)) {
                 try {
                     loadedVisitor.start(visitorContext)
                 } catch (Throwable e) {
@@ -115,6 +109,22 @@ class TypeElementVisitorStart implements ASTTransformation {
             }
         }
 
-        TypeElementVisitorTransform.loadedVisitors = loadedVisitors
+        def val = CachedEnvironment.getProperty(ELEMENT_VISITORS_PROPERTY)
+        if (val) {
+            for (v in val.split(",")) {
+                def visitor = InstantiationUtils.tryInstantiate(v, source.classLoader).orElse(null)
+                if (visitor instanceof TypeElementVisitor) {
+                    LoadedVisitor newLoadedVisitor = new LoadedVisitor(source, compilationUnit, visitor)
+                    loadedVisitors.put(visitor.getClass().getName(), newLoadedVisitor)
+                }
+            }
+        }
+
+        TypeElementVisitorTransform.loadedVisitors.set(loadedVisitors)
+    }
+
+    @Override
+    void setCompilationUnit(CompilationUnit unit) {
+        this.compilationUnit = unit
     }
 }

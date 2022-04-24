@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,5 +32,21 @@ class ReflectionUtilsSpec extends Specification {
         fieldName            | result
         "size"               | true
         "noField"            | false
+    }
+
+    void "test set field"() {
+        given:
+        def f = ReflectionUtils.getRequiredField(Foo, "bar")
+        def foo = new Foo()
+
+        when:
+        ReflectionUtils.setField(f, foo, "test")
+
+        then:
+        foo.bar == 'test'
+    }
+
+    class Foo {
+        String bar
     }
 }

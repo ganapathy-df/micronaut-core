@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,13 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.session;
 
 import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.github.benmanes.caffeine.cache.Expiry;
 import com.github.benmanes.caffeine.cache.RemovalListener;
+import com.github.benmanes.caffeine.cache.Scheduler;
 import io.micronaut.context.annotation.Primary;
 import io.micronaut.context.event.ApplicationEventPublisher;
 import io.micronaut.core.annotation.Internal;
@@ -27,12 +27,11 @@ import io.micronaut.session.event.SessionCreatedEvent;
 import io.micronaut.session.event.SessionDeletedEvent;
 import io.micronaut.session.event.SessionDestroyedEvent;
 import io.micronaut.session.event.SessionExpiredEvent;
+import jakarta.inject.Singleton;
 
-import javax.inject.Singleton;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Default implementation that stores sessions in-memory.
@@ -120,11 +119,17 @@ public class InMemorySessionStore implements SessionStore<InMemorySession> {
      * @return The new cache
      */
     protected Cache<String, InMemorySession> newSessionCache(SessionConfiguration configuration) {
-        Caffeine<String, InMemorySession> builder = Caffeine
-            .newBuilder()
-            .removalListener(newRemovalListener())
-            .expireAfter(newExpiry());
+        Caffeine<String, InMemorySession> builder = Caffeine.newBuilder().removalListener(newRemovalListener());
+
+        if (configuration.isPromptExpiration()) {
+            configuration.getExecutorService()
+                    .map(Scheduler::forScheduledExecutorService)
+                    .ifPresent(builder::scheduler);
+        }
+
+        builder.expireAfter(newExpiry());
         configuration.getMaxActiveSessions().ifPresent(builder::maximumSize);
+
         return builder.build();
     }
 
@@ -148,8 +153,7 @@ public class InMemorySessionStore implements SessionStore<InMemorySession> {
             private long newExpiry(InMemorySession value) {
                 Instant current = Instant.now();
                 value.setLastAccessedTime(current);
-                long newExpiry = current.plus(value.getMaxInactiveInterval()).toEpochMilli();
-                return TimeUnit.MILLISECONDS.toNanos(newExpiry);
+                return value.getMaxInactiveInterval().toNanos();
             }
         };
     }

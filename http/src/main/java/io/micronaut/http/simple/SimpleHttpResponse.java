@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.simple;
 
+import io.micronaut.core.annotation.TypeHint;
 import io.micronaut.core.convert.ConversionService;
 import io.micronaut.core.convert.value.MutableConvertibleValues;
 import io.micronaut.core.convert.value.MutableConvertibleValuesMap;
@@ -26,8 +26,9 @@ import io.micronaut.http.cookie.Cookie;
 import io.micronaut.http.cookie.Cookies;
 import io.micronaut.http.simple.cookies.SimpleCookies;
 
-import javax.annotation.Nullable;
+import io.micronaut.core.annotation.Nullable;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * Simple {@link MutableHttpResponse} implementation.
@@ -37,6 +38,7 @@ import java.util.Optional;
  * @author Vladimir Orany
  * @since 1.0
  */
+@TypeHint(value = SimpleHttpResponse.class)
 class SimpleHttpResponse<B> implements MutableHttpResponse<B> {
 
     private final MutableHttpHeaders headers = new SimpleHttpHeaders(ConversionService.SHARED);
@@ -44,11 +46,19 @@ class SimpleHttpResponse<B> implements MutableHttpResponse<B> {
     private final MutableConvertibleValues<Object> attributes = new MutableConvertibleValuesMap<>();
 
     private HttpStatus status = HttpStatus.OK;
-    private B body;
+    private Object body;
 
     @Override
     public MutableHttpResponse<B> cookie(Cookie cookie) {
-        cookies.put(cookie.getName(), cookie);
+        this.cookies.put(cookie.getName(), cookie);
+        return this;
+    }
+
+    @Override
+    public MutableHttpResponse<B> cookies(Set<Cookie> cookies) {
+        for (Cookie cookie: cookies) {
+            cookie(cookie);
+        }
         return this;
     }
 
@@ -64,13 +74,13 @@ class SimpleHttpResponse<B> implements MutableHttpResponse<B> {
 
     @Override
     public Optional<B> getBody() {
-        return Optional.ofNullable(body);
+        return (Optional<B>) Optional.ofNullable(body);
     }
 
     @Override
-    public MutableHttpResponse<B> body(@Nullable B body) {
+    public <T> MutableHttpResponse<T> body(@Nullable T body) {
         this.body = body;
-        return this;
+        return (MutableHttpResponse<T>) this;
     }
 
     @Override

@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,15 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.convert;
 
 import io.micronaut.core.annotation.AnnotationMetadataProvider;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.TypeVariableResolver;
+import io.micronaut.core.util.ArgumentUtils;
 import io.micronaut.core.util.ArrayUtils;
 
-import javax.annotation.Nullable;
+import io.micronaut.core.annotation.Nullable;
 import java.lang.annotation.Annotation;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -40,6 +40,36 @@ public interface ConversionContext extends AnnotationMetadataProvider, TypeVaria
      */
     ConversionContext DEFAULT = new ConversionContext() {
     };
+
+    /**
+     * Constant for Boolean argument.
+     */
+    ArgumentConversionContext<Boolean> BOOLEAN = ImmutableArgumentConversionContext.of(Argument.BOOLEAN);
+
+    /**
+     * Constant for Integer argument.
+     */
+    ArgumentConversionContext<Integer> INT = ImmutableArgumentConversionContext.of(Argument.INT);
+
+    /**
+     * Constant for Long argument.
+     */
+    ArgumentConversionContext<Long> LONG = ImmutableArgumentConversionContext.of(Argument.LONG);
+
+    /**
+     * Constant for String argument.
+     */
+    ArgumentConversionContext<String> STRING = ImmutableArgumentConversionContext.of(Argument.STRING);
+
+    /**
+     * Constant for List<String> argument.
+     */
+    ArgumentConversionContext<List<String>> LIST_OF_STRING = ImmutableArgumentConversionContext.of(Argument.LIST_OF_STRING);
+
+    /**
+     * Constant for List<String> argument.
+     */
+    ArgumentConversionContext<Map> MAP = ImmutableArgumentConversionContext.of(Argument.of(Map.class));
 
     /**
      * In the case where the type to be converted contains generic type arguments this map will return
@@ -105,6 +135,11 @@ public interface ConversionContext extends AnnotationMetadataProvider, TypeVaria
             }
 
             @Override
+            public void reject(Object value, Exception exception) {
+                thisContext.reject(value, exception);
+            }
+
+            @Override
             public Iterator<ConversionError> iterator() {
                 return thisContext.iterator();
             }
@@ -115,8 +150,6 @@ public interface ConversionContext extends AnnotationMetadataProvider, TypeVaria
             }
         };
     }
-
-
 
     /**
      * Create a simple {@link ConversionContext} for the given generic type variables.
@@ -135,7 +168,10 @@ public interface ConversionContext extends AnnotationMetadataProvider, TypeVaria
     }
 
     /**
-     * Create a simple {@link ConversionContext} for the given generic type variables.
+     * Create a new simple {@link ConversionContext} for the given generic type variables.
+     *
+     * <p>NOTE: The instance returned by this method is NOT thread safe and should be shared
+     * via static state or between threads. Consider using {@link io.micronaut.core.convert.ImmutableArgumentConversionContext} for this case.</p>
      *
      * @param <T>      type Generic
      * @param argument The argument
@@ -148,16 +184,23 @@ public interface ConversionContext extends AnnotationMetadataProvider, TypeVaria
     /**
      * Create a simple {@link ConversionContext} for the given generic type variables.
      *
+     * <p>NOTE: The instance returned by this method is NOT thread safe and should be shared
+     * via static state or between threads. Consider using {@link io.micronaut.core.convert.ImmutableArgumentConversionContext} for this case.</p>
+     *
      * @param <T>      type Generic
      * @param argument The argument
      * @return The conversion context
      */
     static <T> ArgumentConversionContext<T> of(Class<T> argument) {
+        ArgumentUtils.requireNonNull("argument", argument);
         return of(Argument.of(argument), null, null);
     }
 
     /**
      * Create a simple {@link ConversionContext} for the given generic type variables.
+     *
+     * <p>NOTE: The instance returned by this method is NOT thread safe and should be shared
+     * via static state or between threads. Consider using {@link io.micronaut.core.convert.ImmutableArgumentConversionContext} for this case.</p>
      *
      * @param <T>      type Generic
      * @param argument The argument
@@ -171,6 +214,9 @@ public interface ConversionContext extends AnnotationMetadataProvider, TypeVaria
     /**
      * Create a simple {@link ConversionContext} for the given generic type variables.
      *
+     * <p>NOTE: The instance returned by this method is NOT thread safe and should be shared
+     * via static state or between threads. Consider using {@link io.micronaut.core.convert.ImmutableArgumentConversionContext} for this case.</p>
+     *
      * @param <T>      type Generic
      * @param argument The argument
      * @param locale   The locale
@@ -178,6 +224,7 @@ public interface ConversionContext extends AnnotationMetadataProvider, TypeVaria
      * @return The conversion context
      */
     static <T> ArgumentConversionContext<T> of(Argument<T> argument, @Nullable Locale locale, @Nullable Charset charset) {
+        ArgumentUtils.requireNonNull("argument", argument);
         Charset finalCharset = charset != null ? charset : StandardCharsets.UTF_8;
         Locale finalLocale = locale != null ? locale : Locale.getDefault();
         return new DefaultArgumentConversionContext<>(argument, finalLocale, finalCharset);

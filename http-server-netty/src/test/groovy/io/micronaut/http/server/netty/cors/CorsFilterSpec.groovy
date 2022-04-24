@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,10 @@
  */
 package io.micronaut.http.server.netty.cors
 
-import io.micronaut.core.type.Argument
-import io.micronaut.http.HttpHeaders
-import io.micronaut.http.HttpMethod
-import io.micronaut.http.HttpRequest
-import io.micronaut.http.HttpResponse
-import io.micronaut.http.HttpStatus
-import io.micronaut.http.MutableHttpResponse
+import io.micronaut.http.*
+import io.micronaut.http.server.HttpServerConfiguration
 import io.micronaut.http.server.cors.CorsFilter
 import io.micronaut.http.server.cors.CorsOriginConfiguration
-import io.micronaut.http.server.HttpServerConfiguration
 import spock.lang.Specification
 
 import static io.micronaut.http.HttpHeaders.*
@@ -146,7 +140,7 @@ class CorsFilterSpec extends Specification {
         2 * headers.getOrigin() >> Optional.of('http://www.foo.com')
         1 * request.getMethod() >> HttpMethod.GET
         !result.isPresent()
-        0 * headers.get(ACCESS_CONTROL_REQUEST_HEADERS, Argument.of(List,String))
+        0 * headers.get(ACCESS_CONTROL_REQUEST_HEADERS, _)
     }
 
     void "test preflight handleRequest with disallowed header"() {
@@ -170,8 +164,8 @@ class CorsFilterSpec extends Specification {
 
         then: "the request is rejected because bar is not allowed"
         2 * headers.getOrigin() >> Optional.of('http://www.foo.com')
-        1 * headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.class) >> Optional.of(HttpMethod.GET)
-        1 * headers.get(ACCESS_CONTROL_REQUEST_HEADERS, Argument.of(List,String)) >> ['foo', 'bar']
+        1 * headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, _) >> Optional.of(HttpMethod.GET)
+        1 * headers.get(ACCESS_CONTROL_REQUEST_HEADERS, _) >> ['foo', 'bar']
         result.get().status == HttpStatus.FORBIDDEN
     }
 
@@ -196,8 +190,8 @@ class CorsFilterSpec extends Specification {
 
         then: "the request is successful"
         4 * headers.getOrigin() >> Optional.of('http://www.foo.com')
-        2 * headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.class) >> Optional.of(HttpMethod.GET)
-        2 * headers.get(ACCESS_CONTROL_REQUEST_HEADERS, Argument.of(List,String)) >> Optional.of(['foo'])
+        2 * headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, _) >> Optional.of(HttpMethod.GET)
+        2 * headers.get(ACCESS_CONTROL_REQUEST_HEADERS, _) >> Optional.of(['foo'])
         result.get().status == HttpStatus.OK
     }
 
@@ -274,14 +268,45 @@ class CorsFilterSpec extends Specification {
         HttpResponse response = corsHandler.handleRequest(request).get()
 
         then: "the response is not modified"
-        2 * headers.get(ACCESS_CONTROL_REQUEST_HEADERS, Argument.of(List,String)) >> Optional.of(['X-Header', 'Y-Header'])
-        1 * headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.class) >> Optional.of(HttpMethod.GET)
+        2 * headers.get(ACCESS_CONTROL_REQUEST_HEADERS, _) >> Optional.of(['X-Header', 'Y-Header'])
+        1 * headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, _) >> Optional.of(HttpMethod.GET)
         response.getHeaders().get(ACCESS_CONTROL_ALLOW_METHODS) == 'GET'
         response.getHeaders().get(ACCESS_CONTROL_ALLOW_ORIGIN) == 'http://www.foo.com' // The origin is echo'd
         response.getHeaders().get(VARY) == 'Origin' // The vary header is set
         response.getHeaders().getAll(ACCESS_CONTROL_EXPOSE_HEADERS) == ['Foo-Header', 'Bar-Header'] // Expose headers are set from config
         response.getHeaders().get(ACCESS_CONTROL_ALLOW_CREDENTIALS) == 'true' // Allow credentials header is set
         response.getHeaders().getAll(ACCESS_CONTROL_ALLOW_HEADERS) == ['X-Header', 'Y-Header'] // Allow headers are echo'd from the request
+        response.getHeaders().get(ACCESS_CONTROL_MAX_AGE) == '1800' // Max age is set from config
+    }
+
+    void "test handleResponse for preflight request with single header"() {
+        given:
+        def config = new HttpServerConfiguration.CorsConfiguration(singleHeader: true)
+        CorsOriginConfiguration originConfig = new CorsOriginConfiguration()
+        originConfig.exposedHeaders = ['Foo-Header', 'Bar-Header']
+        config.configurations = new LinkedHashMap<String, CorsOriginConfiguration>()
+        config.configurations.put('foo', originConfig)
+        CorsFilter corsHandler = buildCorsHandler(config)
+        HttpRequest request = Mock(HttpRequest)
+        HttpHeaders headers = Mock(HttpHeaders)
+        request.getHeaders() >> headers
+        headers.getOrigin() >> Optional.of('http://www.foo.com')
+        request.getMethod() >> HttpMethod.OPTIONS
+
+
+        when:
+        headers.contains(ACCESS_CONTROL_REQUEST_METHOD) >> true
+        HttpResponse response = corsHandler.handleRequest(request).get()
+
+        then: "the response is not modified"
+        2 * headers.get(ACCESS_CONTROL_REQUEST_HEADERS, _) >> Optional.of(['X-Header', 'Y-Header'])
+        1 * headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, _) >> Optional.of(HttpMethod.GET)
+        response.getHeaders().get(ACCESS_CONTROL_ALLOW_METHODS) == 'GET'
+        response.getHeaders().get(ACCESS_CONTROL_ALLOW_ORIGIN) == 'http://www.foo.com' // The origin is echo'd
+        response.getHeaders().get(VARY) == 'Origin' // The vary header is set
+        response.getHeaders().get(ACCESS_CONTROL_EXPOSE_HEADERS) == 'Foo-Header,Bar-Header' // Expose headers are set from config
+        response.getHeaders().get(ACCESS_CONTROL_ALLOW_CREDENTIALS) == 'true' // Allow credentials header is set
+        response.getHeaders().get(ACCESS_CONTROL_ALLOW_HEADERS) == 'X-Header,Y-Header' // Allow headers are echo'd from the request
         response.getHeaders().get(ACCESS_CONTROL_MAX_AGE) == '1800' // Max age is set from config
     }
 }

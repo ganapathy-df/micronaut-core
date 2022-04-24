@@ -1,59 +1,41 @@
-It is easy to validate incoming data with Micronaut's controllers with the
-<<validation, Validation Advice>>.
+It is easy to validate incoming data with Micronaut controllers using <<validation, Validation Advice>>.
 
-First, add the Hibernate Validator configuration to your application:
+Micronaut provides native support for the `javax.validation` annotations with the `micronaut-validation` dependency:
 
-.build.gradle
-[source,groovy]
-----
-compile "io.micronaut.configuration:micronaut-hibernate-validator"
-----
+dependency::micronaut-validation[]
+
+Or full JSR 380 compliance with the `micronaut-hibernate-validator` dependency:
+
+dependency:micronaut-hibernate-validator[groupId="io.micronaut.beanvalidation"]
 
 We can validate parameters using `javax.validation` annotations and the api:validation.Validated[] annotation at the class level.
 
-[source,java]
-----
-include::{testsvalidation}/datavalidation/params/EmailController.java[tag=imports]
-
-include::{testsvalidation}/datavalidation/params/EmailController.java[tag=clazz]
-----
+snippet::io.micronaut.docs.datavalidation.params.EmailController[tags="imports,clazz", indent=0,title="Example"]
 
 <1> Annotate controller with api:validation.Validated[]
 <2> `subject` and `recipient` cannot be blank.
 
-The validation behaviour is shown in the following test:
+If a validation error occurs a `javax.validation.ConstraintViolationException` is thrown. By default, the integrated `io.micronaut.validation.exception.ConstraintExceptionHandler` handles the exception, leading to a behaviour as shown in the following test:
 
-[source,groovy]
-----
-include::{testsvalidation}/datavalidation/params/EmailControllerSpec.groovy[tag=paramsvalidated,indent=0]
-----
+snippet::io.micronaut.docs.datavalidation.params.EmailControllerSpec[tags="paramsvalidated",indent=0,title="Example Test"]
 
+To use your own `ExceptionHandler` to handle the constraint exceptions, annotate it with `@Replaces(ConstraintExceptionHandler.class)`
 
-Often, you may want to use POJOs as controller method parameters.
+Often you may want to use POJOs as controller method parameters.
 
-[source,java]
-----
-include::{testsvalidation}/datavalidation/pogo/Email.java[]
-----
+snippet::io.micronaut.docs.datavalidation.pogo.Email[tags="clazz", indent=0]
 
 <1> You can use `javax.validation` annotations in your POJOs.
 
-You need to annotate your controller with api:validation.Validated[]. Also, you need to annotate the binding POJO with `@Valid`.
+Annotate your controller with api:validation.Validated[], and annotate the binding POJO with `@Valid`.
 
-.Example
-[source,java]
-----
-include::{testsvalidation}/datavalidation/pogo/EmailController.java[tag=imports]
+snippet::io.micronaut.docs.datavalidation.pogo.EmailController[tags="imports,clazz", indent=0,title="Example"]
 
-include::{testsvalidation}/datavalidation/pogo/EmailController.java[tag=clazz]
-----
-<1> Annotate controller with api:validation.Validated[]
-<2> Annotate the POJO which you wish to validate with `@Valid`
+<1> Annotate the controller with api:validation.Validated[]
+<2> Annotate the POJO to validate with `@Valid`
 
+Validation of POJOs is shown in the following test:
 
-The validation of POJOs is shown in the following test:
+snippet::io.micronaut.docs.datavalidation.pogo.EmailControllerSpec[tags="pojovalidated",indent=0]
 
-[source,groovy]
-----
-include::{testsvalidation}/datavalidation/pogo/EmailControllerSpec.groovy[tag=pojovalidated,indent=0]
-----
+NOTE: Bean injection is supported in custom constraints with the Hibernate Validator configuration.

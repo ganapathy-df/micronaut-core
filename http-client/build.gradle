@@ -1,26 +1,54 @@
-dependencies {
-    compileOnly project(":inject-java")
-    compile dependencyVersion("rxjava2")
-    compile project(":http-netty")
-    compile project(":runtime")
-    compile dependencyModuleVersion("netty", "netty-handler-proxy")
-
-    compileOnly dependencyVersion("reactor")
-    compile project(":websocket")
-
-    testCompile project(":inject-groovy")
-    testCompile project(":validation")
-    testCompile project(":inject-java")
-    testCompile dependencyVersion("rxjava2")
-    testCompile dependencyVersion("reactor")
-    testCompile project(":http-server-netty")
-    testRuntime project(":configurations:hibernate-validator")
+plugins {
+    id "io.micronaut.build.internal.convention-library"
 }
 
-//tasks.withType(Test) {
+micronautBuild {
+    core {
+        usesMicronautTestJunit()
+        usesMicronautTestSpock()
+    }
+}
+
+internalSanityChecks {
+    expectedServiceCount.put('io.micronaut.inject.BeanDefinitionReference', 3)
+}           
+
+dependencies {
+    annotationProcessor project(":inject-java")
+    api project(":runtime")
+    api project(":http-client-core")
+    api project(":websocket")
+    api project(":http-netty")
+    api libs.managed.netty.handler.proxy
+
+    testAnnotationProcessor project(":validation")
+    testAnnotationProcessor project(":inject-java")
+
+    testCompileOnly project(":inject-groovy")
+    testImplementation project(":validation")
+    testImplementation project(":inject")
+
+    implementation libs.managed.reactor
+
+    testImplementation project(":http-server-netty")
+    testImplementation libs.wiremock
+
+    if (JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_15)) {
+        testImplementation libs.bcpkix
+    }
+}
+
+//tasks.withType(Test).configureEach {
+//    jvmArgs('-Dio.netty.leakDetection.level=paranoid')
 //    testLogging {
 //        showStandardStreams = true
-//        exceptionFormat = 'full'
+//    }
+//    beforeTest {
+//        System.out.println("STARTING: ${it.className}.$it.name")
+//        System.out.flush()
+//    }
+//    afterTest {
+//        System.out.println("FINISHED: ${it.className}.$it.name")
+//        System.out.flush()
 //    }
 //}
-//

@@ -1,71 +1,55 @@
-apply plugin: 'com.github.johnrengelman.shadow'
+plugins {
+    id "io.micronaut.build.internal.convention-core-library"
+}
+
+internalSanityChecks {
+    expectedServiceCount.put('io.micronaut.inject.BeanDefinitionReference', 20)
+    expectedServiceCount.put('io.micronaut.core.beans.BeanIntrospectionReference', 5)
+}           
 
 dependencies {
-    for(proj in ['inject', 'http', 'aop']) {
-        shadowCompile project(":$proj")
-        compile project(":$proj")
+    annotationProcessor project(":inject-java")
+    annotationProcessor project(":graal")
+    api project(":http")
+    api project(':inject')
+    api project(':aop')
+    api project(':context')
+    api project(":core-reactive")
+    api project(":jackson-databind")
+    api libs.managed.validation
+
+    implementation libs.managed.reactor
+
+    compileOnly libs.managed.graal
+    compileOnly libs.managed.jcache
+
+    compileOnly libs.log4j
+    compileOnly libs.javax.el
+    compileOnly libs.caffeine
+    compileOnly libs.kotlinx.coroutines.core
+    compileOnly libs.kotlinx.coroutines.reactive
+    compileOnly libs.managed.logback
+    testImplementation libs.managed.logback
+
+    testAnnotationProcessor project(":inject-java")
+    testImplementation libs.jsr107
+    testImplementation libs.managed.jcache
+    testImplementation project(":inject-java")
+    testImplementation project(":inject-java-test")
+    testImplementation project(":inject-groovy")
+    if (!JavaVersion.current().isJava9Compatible()) {
+        testImplementation files(org.gradle.internal.jvm.Jvm.current().toolsJar)
     }
-
-    shadowCompile dependencyVersion("validation")
-    shadowCompile dependencyVersion("jackson")
-    shadowCompile dependencyVersion("rxjava2")
-
-    compile dependencyVersion("validation")
-    compile dependencyVersion("jackson")
-    compile dependencyVersion("rxjava2")
-
-    shadowRuntime([
-        dependencyVersion('jackson.datatype'),
-        dependencyModuleVersion('jackson.datatype', 'jackson-datatype-jsr310')
-    ])
-    runtime([
-        dependencyVersion('jackson.datatype'),
-        dependencyModuleVersion('jackson.datatype', 'jackson-datatype-jsr310')
-    ])
-
-    compileOnly 'org.glassfish:javax.el:3.0.1-b09'
-    compileOnly dependencyVersion("reactor")
-    compileOnly dependencyVersion("rxjava1.interop")
-    compileOnly "com.github.ben-manes.caffeine:caffeine:$caffeineVersion"
-    compileOnly project(":inject-java")
-
-    testCompile dependencyVersion("rxjava1.interop")
-    testCompile dependencyVersion("reactor")
-    testCompile project(":inject-java")
-    testCompile project(":inject-java-test")
-    testCompile project(":inject-groovy")
-    testCompile dependencyModuleVersion("gorm", "grails-datastore-gorm")
-    testCompile files(org.gradle.internal.jvm.Jvm.current().toolsJar)
+    testImplementation libs.systemlambda
 }
 
-shadowJar {
-    dependencies {
-        for(dep in project.configurations.shadowCompile.dependencies + project.configurations.shadowRuntime.dependencies) {
-            if(dep instanceof ProjectDependency) {
-                exclude(project(":$dep.name"))
-            }
-            else if(dep instanceof ExternalDependency) {
-                exclude(dependency("$dep.group:$dep.name:.*"))
-            }
-        }
-        exclude(project(":core"))
-        exclude(dependency('javax.annotation:.*:.*'))
-        exclude(dependency("com.fasterxml.*:.*:.*"))
-        exclude(dependency(dependencyVersion("slf4j")))
-        exclude(dependency(dependencyVersion("snakeyaml")))
-        exclude(dependency(group: 'javax.inject', name: 'javax.inject', version: '1'))
-        exclude(dependency('org.ow2.asm:.*:.*'))
-        exclude(dependency('org.reactivestreams:.*:.*'))
-        exclude(dependency('com.google.code.findbugs:.*:.*'))
-        exclude(dependency('com.github.ben-manes.caffeine:.*:.*'))
-    }
-
-    relocate "org.objectweb.asm", "io.micronaut.asm"
-    relocate "com.github.benmanes.caffeine", "io.micronaut.caffeine"
-
-}
-tasks.withType(com.github.jengelman.gradle.plugins.shadow.tasks.ConfigureShadowRelocation) { t ->
-    t.enabled = false
-}
+//compileJava.options.fork = true
+//compileJava.options.forkOptions.jvmArgs = ['-Xdebug', '-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=5005']
 
 //compileTestGroovy.groovyOptions.forkOptions.jvmArgs = ['-Xdebug', '-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=5005']
+
+spotless {
+    java {
+        targetExclude '**/io/micronaut/scheduling/cron/CronExpression.java'
+    }
+}

@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,6 +17,8 @@ package io.micronaut.aop.proxytarget;
 
 import io.micronaut.aop.simple.*;
 
+import jakarta.annotation.PostConstruct;
+import jakarta.inject.Singleton;
 import java.util.Collections;
 import java.util.List;
 
@@ -24,15 +26,23 @@ import java.util.List;
  * @author Graeme Rocher
  * @since 1.0
  */
+@Singleton
 public class ProxyingClass<A extends CharSequence> {
+
 
     private Bar bar;
 
+    public int lifeCycleCount = 0;
     public int invocationCount = 0;
 
     public <T extends Bar> ProxyingClass(T bar) {
         this.bar = bar;
         assert bar != null;
+    }
+
+    @PostConstruct
+    void init() {
+        lifeCycleCount++;
     }
 
     @Mutating("name")

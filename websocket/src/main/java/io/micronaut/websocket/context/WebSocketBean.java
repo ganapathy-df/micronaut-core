@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.websocket.context;
 
 import io.micronaut.inject.BeanDefinition;
@@ -42,11 +41,23 @@ public interface WebSocketBean<T> {
     T getTarget();
 
     /**
-     * Returns the method annotated with {@link io.micronaut.websocket.annotation.OnMessage}.
+     * Returns the method annotated with {@link io.micronaut.websocket.annotation.OnMessage} responsible for regular
+     * messages.
      *
      * @return the method
      */
     Optional<MethodExecutionHandle<T, ?>> messageMethod();
+
+    /**
+     * Returns the method annotated with {@link io.micronaut.websocket.annotation.OnMessage} responsible for pong
+     * messages.
+     *
+     * @return the method
+     * @since 3.1
+     */
+    default Optional<MethodExecutionHandle<T, ?>> pongMethod() {
+        return Optional.empty();
+    }
 
     /**
      * Returns the method annotated with {@link io.micronaut.websocket.annotation.OnClose}.

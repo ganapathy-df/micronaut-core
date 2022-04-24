@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.bind;
 
 import io.micronaut.core.bind.exceptions.UnsatisfiedArgumentException;
@@ -24,7 +23,7 @@ import io.micronaut.core.convert.exceptions.ConversionErrorException;
 import io.micronaut.core.type.Argument;
 import io.micronaut.core.type.Executable;
 
-import javax.annotation.Nullable;
+import io.micronaut.core.annotation.Nullable;
 import java.util.*;
 
 /**
@@ -79,7 +78,7 @@ public class DefaultExecutableBinder<S> implements ExecutableBinder<S> {
                     );
 
                     if (!bindingResult.isPresentAndSatisfied()) {
-                        if (argument.getAnnotationMetadata().hasAnnotation(Nullable.class)) {
+                        if (argument.isNullable()) {
                             boundArguments[i] = null;
                         } else {
                             final Optional<ConversionError> lastError = conversionContext.getLastError();
@@ -144,7 +143,7 @@ public class DefaultExecutableBinder<S> implements ExecutableBinder<S> {
                     );
 
                     if (!bindingResult.isPresentAndSatisfied()) {
-                        if (argument.getAnnotationMetadata().hasAnnotation(Nullable.class)) {
+                        if (argument.isNullable()) {
                             boundArguments[i] = null;
                         } else {
                             boundArguments[i] = null;

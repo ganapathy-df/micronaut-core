@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,20 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.discovery;
 
 import io.micronaut.core.naming.NameUtils;
 import io.micronaut.core.util.ArrayUtils;
-import io.reactivex.Flowable;
-import io.reactivex.Maybe;
+import org.reactivestreams.Publisher;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * A composite implementation combining all registered {@link DiscoveryClient} instances.
@@ -52,32 +52,42 @@ public abstract class CompositeDiscoveryClient implements DiscoveryClient {
         return toString();
     }
 
-    @Override
-    public Flowable<List<ServiceInstance>> getInstances(String serviceId) {
-        serviceId = NameUtils.hyphenate(serviceId);
-        if (ArrayUtils.isEmpty(discoveryClients)) {
-            return Flowable.just(Collections.emptyList());
-        }
-        String finalServiceId = serviceId;
-        Stream<Flowable<List<ServiceInstance>>> flowableStream = Arrays.stream(discoveryClients).map(client -> Flowable.fromPublisher(client.getInstances(finalServiceId)));
-        Maybe<List<ServiceInstance>> reduced = Flowable.merge(flowableStream.collect(Collectors.toList())).reduce((instances, otherInstances) -> {
-            instances.addAll(otherInstances);
-            return instances;
-        });
-        return reduced.toFlowable();
+    /**
+     * The underlying clients.
+     * @return The clients
+     */
+    public DiscoveryClient[] getDiscoveryClients() {
+        return discoveryClients;
     }
 
     @Override
-    public Flowable<List<String>> getServiceIds() {
+    public Publisher<List<ServiceInstance>> getInstances(String serviceId) {
+        serviceId = NameUtils.hyphenate(serviceId);
         if (ArrayUtils.isEmpty(discoveryClients)) {
-            return Flowable.just(Collections.emptyList());
+            return Flux.just(Collections.emptyList());
         }
-        Stream<Flowable<List<String>>> flowableStream = Arrays.stream(discoveryClients).map(client -> Flowable.fromPublisher(client.getServiceIds()));
-        Maybe<List<String>> reduced = Flowable.merge(flowableStream.collect(Collectors.toList())).reduce((strings, strings2) -> {
-            strings.addAll(strings2);
-            return strings;
-        });
-        return reduced.toFlowable();
+        String finalServiceId = serviceId;
+        Mono<List<ServiceInstance>> reduced = Flux.fromArray(discoveryClients)
+                .flatMap(client -> client.getInstances(finalServiceId))
+                .reduce(new ArrayList<>(), (instances, otherInstances) -> {
+                    instances.addAll(otherInstances);
+                    return instances;
+                });
+        return reduced.flux();
+    }
+
+    @Override
+    public Publisher<List<String>> getServiceIds() {
+        if (ArrayUtils.isEmpty(discoveryClients)) {
+            return Flux.just(Collections.emptyList());
+        }
+        Mono<List<String>> reduced = Flux.fromArray(discoveryClients)
+                .flatMap(DiscoveryClient::getServiceIds)
+                .reduce(new ArrayList<>(), (serviceIds, otherServiceIds) -> {
+                    serviceIds.addAll(otherServiceIds);
+                    return serviceIds;
+                });
+        return reduced.flux();
     }
 
     @Override

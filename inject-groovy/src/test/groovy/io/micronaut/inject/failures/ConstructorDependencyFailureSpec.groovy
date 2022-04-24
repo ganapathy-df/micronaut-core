@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import io.micronaut.context.DefaultBeanContext
 import io.micronaut.context.exceptions.DependencyInjectionException
 import spock.lang.Specification
 
-import javax.inject.Inject
+import jakarta.inject.Inject
 
 /**
  * Created by graemerocher on 12/05/2017.
@@ -38,12 +38,12 @@ class ConstructorDependencyFailureSpec extends Specification {
 
         then:"The correct error is thrown"
         def e = thrown(DependencyInjectionException)
-        println e.message
-        e.message.normalize() == '''\
+        e.message.normalize().contains('''\
 Failed to inject value for parameter [a] of class: io.micronaut.inject.failures.ConstructorDependencyFailureSpec$B
 
-Message: No bean of type [io.micronaut.inject.failures.ConstructorDependencyFailureSpec$A] exists. Ensure the class is declared a bean and if you are using Java or Kotlin make sure you have enabled annotation processing.
-Path Taken: new B([A a])'''
+Message: No bean of type [io.micronaut.inject.failures.ConstructorDependencyFailureSpec$A] exists.''')
+
+        e.message.normalize().contains('Path Taken: new B(A a) --> new B([A a])')
     }
 
     static interface A {

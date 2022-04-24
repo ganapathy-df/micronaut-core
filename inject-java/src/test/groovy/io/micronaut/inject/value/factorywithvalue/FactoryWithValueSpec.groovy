@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import io.micronaut.context.ApplicationContext
 import io.micronaut.context.ApplicationContext
 import io.micronaut.context.DefaultApplicationContext
 import io.micronaut.context.annotation.Factory
-import io.micronaut.inject.AbstractTypeElementSpec
+import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 import io.micronaut.inject.BeanDefinition
 import spock.lang.Specification
 /**
@@ -59,6 +59,7 @@ class MyBean {
 ''')
         then:"the default scope is singleton"
         beanDefinition.hasAnnotation(Factory)
+        beanDefinition
     }
 
     void "test configuration injection with @Value"() {

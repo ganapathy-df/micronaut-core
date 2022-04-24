@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,7 +20,7 @@ import io.micronaut.context.DefaultBeanContext
 import io.micronaut.context.exceptions.BeanInstantiationException
 import spock.lang.Specification
 
-import javax.annotation.PostConstruct
+import jakarta.annotation.PostConstruct
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -39,7 +39,10 @@ class PostConstructExceptionSpec extends Specification {
 
         then:"The implementation is injected"
         def e = thrown(BeanInstantiationException)
-        e.message == 'Error instantiating bean of type [io.micronaut.inject.failures.PostConstructExceptionSpec$B]: bad'
+        e.message == '''Error instantiating bean of type  [io.micronaut.inject.failures.PostConstructExceptionSpec$B]
+
+Message: bad
+Path Taken: new B()'''
     }
 
 

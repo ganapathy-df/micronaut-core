@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,39 +13,65 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.server.netty.multipart;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.naming.NameUtils;
+import io.micronaut.core.util.SupplierUtil;
 import io.micronaut.http.MediaType;
 import io.micronaut.http.multipart.CompletedFileUpload;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufUtil;
 import io.netty.handler.codec.http.multipart.FileUpload;
+import io.netty.util.ResourceLeakDetector;
+import io.netty.util.ResourceLeakDetectorFactory;
+import io.netty.util.ResourceLeakTracker;
 
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * A Netty implementation of {@link CompletedFileUpload}.
  *
  * @author Zachary Klein
- * @since 1.0
+ * @since 1.0.0
  */
 @Internal
 public class NettyCompletedFileUpload implements CompletedFileUpload {
+    //to avoid initializing Netty at build time
+    private static final Supplier<ResourceLeakDetector<NettyCompletedFileUpload>> RESOURCE_LEAK_DETECTOR = SupplierUtil.memoized(() ->
+            ResourceLeakDetectorFactory.instance().newResourceLeakDetector(NettyCompletedFileUpload.class));
 
     private final FileUpload fileUpload;
+    private final boolean controlRelease;
+
+    private final ResourceLeakTracker<NettyCompletedFileUpload> tracker;
 
     /**
      * @param fileUpload The file upload
      */
     public NettyCompletedFileUpload(FileUpload fileUpload) {
+        this(fileUpload, true);
+    }
+
+    /**
+     * @param fileUpload The file upload
+     * @param controlRelease If true, release after retrieving the data
+     */
+    public NettyCompletedFileUpload(FileUpload fileUpload, boolean controlRelease) {
         this.fileUpload = fileUpload;
-        fileUpload.retain();
+        this.controlRelease = controlRelease;
+        if (controlRelease) {
+            fileUpload.retain();
+            tracker = RESOURCE_LEAK_DETECTOR.get().track(this);
+        } else {
+            tracker = null;
+        }
     }
 
     /**
@@ -59,7 +85,19 @@ public class NettyCompletedFileUpload implements CompletedFileUpload {
      */
     @Override
     public InputStream getInputStream() throws IOException {
-        return new ByteBufInputStream(fileUpload.getByteBuf(), true);
+        if (fileUpload.isInMemory()) {
+            ByteBuf byteBuf = fileUpload.getByteBuf();
+            if (byteBuf == null) {
+                throw new IOException("The input stream has already been released");
+            }
+            return new ByteBufInputStream(byteBuf, controlRelease);
+        } else {
+            File file = fileUpload.getFile();
+            if (file == null) {
+                throw new IOException("The input stream has already been released");
+            }
+            return new NettyFileUploadInputStream(fileUpload, controlRelease);
+        }
     }
 
     /**
@@ -74,10 +112,13 @@ public class NettyCompletedFileUpload implements CompletedFileUpload {
     @Override
     public byte[] getBytes() throws IOException {
         ByteBuf byteBuf = fileUpload.getByteBuf();
+        if (byteBuf == null) {
+            throw new IOException("The bytes have already been released");
+        }
         try {
             return ByteBufUtil.getBytes(byteBuf);
         } finally {
-            byteBuf.release();
+            discard();
         }
     }
 
@@ -93,16 +134,19 @@ public class NettyCompletedFileUpload implements CompletedFileUpload {
     @Override
     public ByteBuffer getByteBuffer() throws IOException {
         ByteBuf byteBuf = fileUpload.getByteBuf();
+        if (byteBuf == null) {
+            throw new IOException("The byte buffer has already been released");
+        }
         try {
             return byteBuf.nioBuffer();
         } finally {
-            byteBuf.release();
+            discard();
         }
     }
 
     @Override
     public Optional<MediaType> getContentType() {
-        return Optional.of(MediaType.of(fileUpload.getContentType()));
+        return Optional.of(new MediaType(fileUpload.getContentType(), NameUtils.extension(fileUpload.getFilename())));
     }
 
     @Override
@@ -121,7 +165,22 @@ public class NettyCompletedFileUpload implements CompletedFileUpload {
     }
 
     @Override
+    public long getDefinedSize() {
+        return fileUpload.definedLength();
+    }
+
+    @Override
     public boolean isComplete() {
         return fileUpload.isCompleted();
+    }
+
+    @Override
+    public final void discard() {
+        if (controlRelease) {
+            fileUpload.release();
+        }
+        if (tracker != null) {
+            tracker.close(this);
+        }
     }
 }

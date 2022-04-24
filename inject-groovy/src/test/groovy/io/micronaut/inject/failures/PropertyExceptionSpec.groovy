@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import io.micronaut.context.DefaultBeanContext
 import io.micronaut.context.exceptions.BeanInstantiationException
 import spock.lang.Specification
 
-import javax.inject.Inject
-import javax.inject.Singleton
+import jakarta.inject.Inject
+import jakarta.inject.Singleton
 
 /**
  * Created by graemerocher on 17/05/2017.
@@ -44,7 +44,7 @@ class PropertyExceptionSpec extends Specification {
 Error instantiating bean of type  [io.micronaut.inject.failures.PropertyExceptionSpec$B]
 
 Message: bad
-Path Taken: B.a'''
+Path Taken: new B() --> B.a'''
     }
 
     @Singleton

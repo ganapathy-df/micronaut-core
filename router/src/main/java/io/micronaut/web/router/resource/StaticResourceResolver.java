@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.web.router.resource;
 
 import io.micronaut.core.io.ResourceLoader;
@@ -22,8 +21,8 @@ import io.micronaut.core.util.CollectionUtils;
 import io.micronaut.core.util.PathMatcher;
 import io.micronaut.core.util.StringUtils;
 
-import javax.inject.Singleton;
 import java.net.URL;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,12 +34,20 @@ import java.util.Optional;
  * @author James Kleeh
  * @since 1.0
  */
-@Singleton
 public class StaticResourceResolver {
+    /**
+     * An empty resolver to use as a constant.
+     */
+    public static final StaticResourceResolver EMPTY = new StaticResourceResolver(Collections.emptyList()) {
+        @Override
+        public Optional<URL> resolve(String resourcePath) {
+            return Optional.empty();
+        }
+    };
 
     private static final String INDEX_PAGE = "index.html";
     private final AntPathMatcher pathMatcher;
-    private final Map<String, List<ResourceLoader>> resourceMappings = new LinkedHashMap<>();
+    private final Map<String, List<ResourceLoader>> resourceMappings;
 
     /**
      * Default constructor.
@@ -48,13 +55,17 @@ public class StaticResourceResolver {
      * @param configurations The static resource configurations
      */
     StaticResourceResolver(List<StaticResourceConfiguration> configurations) {
-        this.pathMatcher = PathMatcher.ANT;
-
-        if (CollectionUtils.isNotEmpty(configurations)) {
-
-            for (StaticResourceConfiguration config: configurations) {
-                if (config.isEnabled()) {
-                    this.resourceMappings.put(config.getMapping(), config.getResourceLoaders());
+        if (CollectionUtils.isEmpty(configurations)) {
+            this.pathMatcher = null;
+            this.resourceMappings = Collections.emptyMap();
+        } else {
+            this.resourceMappings = new LinkedHashMap<>();
+            this.pathMatcher = PathMatcher.ANT;
+            if (CollectionUtils.isNotEmpty(configurations)) {
+                for (StaticResourceConfiguration config: configurations) {
+                    if (config.isEnabled()) {
+                        this.resourceMappings.put(config.getMapping(), config.getResourceLoaders());
+                    }
                 }
             }
         }

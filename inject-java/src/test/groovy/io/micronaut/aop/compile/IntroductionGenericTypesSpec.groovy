@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,9 @@
  */
 package io.micronaut.aop.compile
 
+import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 import io.micronaut.context.DefaultBeanContext
 import io.micronaut.core.type.ReturnType
-import io.micronaut.inject.AbstractTypeElementSpec
 import io.micronaut.inject.BeanDefinition
 import io.micronaut.inject.BeanFactory
 import io.micronaut.inject.writer.BeanDefinitionVisitor
@@ -46,7 +46,8 @@ interface MyInterface<T extends URL> {
 
 
 @Stub
-@javax.inject.Singleton
+@jakarta.inject.Singleton
+@Executable
 interface MyBean extends MyInterface<URL> {
 }
 
@@ -57,6 +58,7 @@ interface MyBean extends MyInterface<URL> {
         beanDefinition.injectedFields.size() == 0
         beanDefinition.executableMethods.size() == 2
         beanDefinition.executableMethods[0].methodName == 'getURL'
+        beanDefinition.executableMethods[0].targetMethod.returnType == URL
         beanDefinition.executableMethods[0].returnType.type == URL
         beanDefinition.executableMethods[1].returnType.type == List
         beanDefinition.executableMethods[1].returnType.asArgument().hasTypeVariables()
@@ -75,7 +77,7 @@ import java.net.*;
 
 interface MyInterface<T extends Person> {
 
-    io.reactivex.Single<java.util.List<T>> getPeopleSingle();
+    reactor.core.publisher.Mono<java.util.List<T>> getPeopleSingle();
     
     T getPerson();
     
@@ -95,7 +97,8 @@ interface MyInterface<T extends Person> {
 
 
 @Stub
-@javax.inject.Singleton
+@jakarta.inject.Singleton
+@Executable
 interface MyBean extends MyInterface<SubPerson> {
 
 }
@@ -107,20 +110,21 @@ class SubPerson extends Person {}
         then:
         !beanDefinition.isAbstract()
         beanDefinition != null
-        returnType(beanDefinition, "getPeopleMap").typeVariables['K'].type.name == 'test.SubPerson'
-        returnType(beanDefinition, "getPeopleMap").typeVariables['V'].type == URL
-        returnType(beanDefinition, "getPeopleSingle").typeVariables['T'].type== List
-        returnType(beanDefinition, "getPeopleSingle").typeVariables['T'].typeVariables['E'].type.name == 'test.SubPerson'
         returnType(beanDefinition, "getPerson").type.name == 'test.SubPerson'
         returnType(beanDefinition, "getPeople").type == List
         returnType(beanDefinition, "getPeople").asArgument().hasTypeVariables()
         returnType(beanDefinition, "getPeople").asArgument().typeVariables['E'].type.name == 'test.SubPerson'
+        returnType(beanDefinition, "getPeopleMap").typeVariables['K'].type.name == 'test.SubPerson'
+        returnType(beanDefinition, "getPeopleMap").typeVariables['V'].type == URL
         returnType(beanDefinition, "getPeopleArray").type.isArray()
         returnType(beanDefinition, "getPeopleArray").type.name.contains('test.SubPerson')
         returnType(beanDefinition, "getPeopleListArray").type == List
         returnType(beanDefinition, "getPeopleListArray").typeVariables['E'].type.isArray()
-
-
+        beanDefinition.findPossibleMethods("save").findFirst().get().targetMethod != null
+        beanDefinition.findPossibleMethods("getPerson").findFirst().get().targetMethod != null
+        def getPeopleSingle = returnType(beanDefinition, "getPeopleSingle")
+        getPeopleSingle.typeVariables['T'].type== List
+        getPeopleSingle.typeVariables['T'].typeVariables['E'].type.name == 'test.SubPerson'
 
 
         when:

@@ -1,124 +1,146 @@
-=== Getting Started with Micronaut and Graal
+=== Getting Started with Micronaut and GraalVM
 
-To get started creating a Microservice that can be compiled into a native image, use the `graal-native-image` feature when creating the application with the CLI:
+Since Micronaut 2.2, any Micronaut application is ready to be built into a native image using the Micronaut Gradle or Maven plugins. To get started, create a new application:
 
-.Creating a Graal Native Microservice
+.Creating a GraalVM Native Microservice
 [source,bash]
 ----
-$ mn create-app hello-world --features graal-native-image
+$ mn create-app hello-world
 ----
 
-The `graal-native-image` feature adds four important items:
-
-1. A `MicronautSubstitutions.java` file needed to recompute Netty and Caffeine's use of `Unsafe`.
-2. The `svm` and `graal` dependencies to your `build.gradle` (or `pom.xml` if `--build maven` is used).
-3. A `Dockerfile` which can be used to construct the native image using Docker and a script `docker-build.sh` to run it.
-4. A `build-native-image.sh` script to build the native image without using Docker.
-
+You can use `--build maven` for a Maven build.
 
 ==== Building a Native Image Using Docker
 
-To build your native image using Docker simply run:
+To build your native image using Gradle and Docker, run:
 
+.Building a Native Image with Docker and Gradle
 [source,bash]
 ----
-$ docker build . -t hello-world
-$ docker run --network=host hello-world # <1>
+$ ./gradlew dockerBuildNative
 ----
-<1> Start the Docker container with `--network=host` makes the application uses the same network as the host so all ports are exposed automatically without needing to map them manually
 
-Or use the provided script:
+To build your native image using Maven and Docker, run:
 
+.Building a Native Image with Docker and Maven
 [source,bash]
 ----
-$ ./docker-build.sh
+$ ./mvnw package -Dpackaging=docker-native
 ----
-
-The provided `Dockerfile` is a multi-stage dockerfile which builds the project in three steps:
-
-1. A Gradle or Maven image will build the project.
-2. A GraalVM official image will build the native image.
-3. A typical dockerfile structure will build the final image which in smaller due to layering.
-
-With this approach you need to have installed only Docker as it downloads the required images, if necessary.
-
 
 ==== Building a Native Image Without Using Docker
 
-To build your native image without using Docker you need to install GraalVM SDK via the https://www.graalvm.org/docs/getting-started/[Getting Started] instructions or using SDKman:
+To build your native image without using Docker, install the GraalVM SDK via the https://www.graalvm.org/docs/getting-started/[Getting Started] instructions or using https://sdkman.io/[Sdkman!]:
 
-.Installing GraalVM 1.0.0-rc11 with SDKman
+.Installing GraalVM {graalVersion} with SDKman
+[source,bash,subs="attributes+"]
+----
+$ sdk install java {graalVersion}.r11-grl
+$ sdk use java {graalVersion}.r11-grl
+----
+
+The `native-image` tool was extracted from the base GraalVM distribution and is available as a plugin. To install it, run:
+
+.Installing `native-image` tool
 [source,bash]
 ----
-$ sdk install java 1.0.0-rc-11-grl
-$ sdk use java 1.0.0-rc-11-grl
+$ gu install native-image
 ----
 
-.Creating native image
+Now you can build a native image with Gradle by running the `nativeCompile` task:
+
+.Creating native image with Gradle
 [source,bash]
 ----
-$ ./build-native-image.sh
+$ ./gradlew nativeCompile
 ----
 
+The native image will be built in the `build/native/nativeCompile` directory.
 
-=== Understanding Micronaut and Graal
+To create a native image with Maven and the Micronaut Maven plugin, use the `native-image` packaging format:
 
-Although Micronaut Dependency Injection does not use reflection, Micronaut does heavily rely on dynamic class loading. GraalVM needs to know ahead of time all the classes that are to be dynamically loaded.
-
-So before you can build a native image Micronaut needs to compute your application's classloading requirements. The `Dockerfile` and the `build-native-image.sh` do this automatically for you, but you can also run the logic to generate Graal's `reflect.json` file manually:
-
-.Computing Class Loading Requirements
+.Creating native image with Maven
 [source,bash]
 ----
-$ ./gradlew assemble
-$ java -cp build/libs/hello-world-0.1-all.jar io.micronaut.graal.reflect.GraalClassLoadingAnalyzer
+$ ./mvnw package -Dpackaging=native-image
 ----
 
-The `GraalClassLoadingAnalyzer` will write out a `reflect.json` file computing the classloading requirements of the application.
+which builds the native image in the `target` directory.
 
-The default is to write this file to the `build` directory for Gradle and the `target` directory for Maven. You can alter the destination by specifying an argument:
+You can then run the native image from the directory where you built it.
 
-.Writing `reflect.json` to a custom location
+.Run native image
 [source,bash]
 ----
-$ java -cp build/libs/hello-world-0.1-all.jar io.micronaut.graal.reflect.GraalClassLoadingAnalyzer somelocation/myreflect.json
+$ ./hello-world
 ----
 
-The generated `reflect.json` file contains the classes that were dynamically loaded by the application when started up. See https://github.com/oracle/graal/blob/master/substratevm/REFLECTION.md[GraalVM documentation] for information on the JSON format.
+=== Understanding Micronaut and GraalVM
 
-TIP: If you wish you can use this file as a template and copy it to the source tree, making modifications as necessary and then altering the `Dockerfile` template or the `build-native-image.sh` script to point to the new location.
+Micronaut itself does not rely on reflection or dynamic classloading, so it works automatically with GraalVM native, however certain third-party libraries used by Micronaut may require additional input about uses of reflection.
 
-Once the `reflect.json` file is ready you can run the `native-image` command. The script runs the following `native-image` command:
+Micronaut includes an annotation processor that helps to generate the `reflect-config.json` metadata files that are automatically picked up by the `native-image` tool:
+
+dependency:micronaut-graal[scope="annotationProcessor"]
+
+This processor generates:
+
+- A `reflect-config.json` file in the `META-INF/native-image` directory in your build classes directory (`target/classes` with Maven and typically `build/classes/java/main` with Gradle).
+
+For example the following class:
+
+[source,java]
+----
+package example;
+
+import io.micronaut.core.annotation.ReflectiveAccess;
+
+@ReflectiveAccess
+class Test {
+    ...
+}
+----
+
+The above example results in the public methods, declared fields and declared constructors of `example.Test` being included in `reflect-config.json`.
+
+If you have more advanced requirements and only wish to include certain fields or methods, use the annotation on any constructor, field or method to include only the specific field, constructor or method.
+
+TIP: To provide your own `reflect.json`, add one to `src/main/graal/reflect.json` and it will be automatically picked up.
+
+=== Adding Additional Classes for Reflective Access
+
+To inform Micronaut of additional classes to be included in the generated `reflect.json` file at compile time, either annotate a class with ann:core.annotation.ReflectiveAccess[] or ann:core.annotation.TypeHint[].
+
+Both allows for reflective access, and the latter is typically used on a module or `Application` class to include classes that are needed reflectively. For example, the following is from Micronaut's Jackson module:
+
+[source,java]
+----
+@TypeHint(
+    value = { // <1>
+        PropertyNamingStrategy.UpperCamelCaseStrategy.class,
+        ArrayList.class,
+        LinkedHashMap.class,
+        HashSet.class
+    },
+    accessType = TypeHint.AccessType.ALL_DECLARED_CONSTRUCTORS // <2>
+)
+----
+
+<1> The `value` member specifies which classes require reflection.
+<2> The `accessType` member specifies if only classloading access is needed or whether full reflection on all public members is needed.
+
+=== Generating Native Images
+
+GraalVM's `native-image` command generates native images. You can use this command manually to generate your native image. For example:
 
 .The `native-image` command
 [source,bash]
 ----
-native-image --no-server \ # <1>
-             --class-path build/libs/hello-world-0.1-all.jar \ # <2>
-             -H:ReflectionConfigurationFiles=build/reflect.json \ # <3>
-             -H:EnableURLProtocols=http \ # <4>
-             -H:IncludeResources="logback.xml|application.yml|META-INF/services/*.*" \ # <5>
-             -H:Name=hello-world \ # <6>
-             -H:Class=hello.world.Application \ # <7>
-             -H:+ReportUnsupportedElementsAtRuntime \ # <8>
-             -H:+AllowVMInspection \
-             -H:-UseServiceLoaderFeature \
-             --allow-incomplete-classpath \
-             --rerun-class-initialization-at-runtime='sun.security.jca.JCAUtil$CachedSecureRandomHolder,javax.net.ssl.SSLContext' \
-             --delay-class-initialization-to-runtime=io.netty.handler.codec.http.HttpObjectEncoder,io.netty.handler.codec.http.websocketx.WebSocket00FrameEncoder,io.netty.handler.ssl.util.ThreadLocalInsecureRandom,com.sun.jndi.dns.DnsClient <9>
+native-image --class-path build/libs/hello-world-0.1-all.jar # <1>
 ----
-<1> Do not start a background server to generate the native image
-<2> The `class-path` argument is used to refer to the Micronaut shaded JAR
-<3> The `-H:ReflectionConfigurationFiles` option points GraalVM to the `reflect.json` file (or files) needed to run the application. Multiple comma-separated files can be specified.
-<4> Micronaut uses the JVM's default URL connection classes. The `-H:EnableURLProtocols` allows using them in GraalVM `nativeimage`.
-<5> The `-H:IncludeResources` argument specifies a regex to dictate which static resources should be included in the image.
-<6> The `-H:Name` argument specifies the name of the native image to be built
-<7> The `-H:Class` argument specifies the Java main class that is the entry point of the application.
-<8> The `-H:+ReportUnsupportedElementsAtRuntime` tells GraalVM to report any `ClassNotFoundException` errors at runtime instead of at build time.
-<9> The `--delay-class-initialization-to-runtime` specifies which classes static initializers should be delayed until runtime. GraalVM by default runs static initializers at build time. That is undesirable in certain cases (particularly with Netty).
+<1> The `class-path` argument refers to the Micronaut shaded JAR
 
-
-Once the image has been built you can run the application using the native image name:
+Once the image is built, run the application using the native image name:
 
 .Running the Native Application
 [source,bash]
@@ -127,4 +149,8 @@ $ ./hello-world
 15:15:15.153 [main] INFO  io.micronaut.runtime.Micronaut - Startup completed in 14ms. Server Running: http://localhost:8080
 ----
 
-As you can see the advantage of having a native image is startup completes in milliseconds and memory consumption does not include the overhead of the JVM (a native Micronaut application runs with just 20mb of memory).
+As you can see, the native image startup completes in milliseconds, and memory consumption does not include the overhead of the JVM (a native Micronaut application runs with just 20mb of memory).
+
+=== Resource file generation
+
+Starting in Micronaut 3.0 the automatic generation of the `resource-config.json` file is now part of the https://github.com/micronaut-projects/micronaut-gradle-plugin[Gradle] and https://github.com/micronaut-projects/micronaut-maven-plugin[Maven] plugins.

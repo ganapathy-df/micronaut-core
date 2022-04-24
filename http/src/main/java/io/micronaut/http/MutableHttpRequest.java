@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,17 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http;
 
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.util.ArrayUtils;
 import io.micronaut.http.cookie.Cookie;
+import io.micronaut.http.uri.UriBuilder;
 
 import java.net.URI;
-import java.util.Arrays;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 /**
  * An extended version of {@link HttpRequest} that allows mutating headers, the body etc.
@@ -43,6 +44,20 @@ public interface MutableHttpRequest<B> extends HttpRequest<B>, MutableHttpMessag
     MutableHttpRequest<B> cookie(Cookie cookie);
 
     /**
+     * Sets the specified cookies on the request.
+     *
+     * @param cookies the Cookies to return to the client
+     * @return The http request
+     */
+    default MutableHttpRequest<B> cookies(Set<Cookie> cookies) {
+        for (Cookie cookie: cookies) {
+            cookie(cookie);
+        }
+        return this;
+    }
+
+
+    /**
      * Sets the uri on the request.
      *
      * @param uri The uri to call
@@ -51,13 +66,26 @@ public interface MutableHttpRequest<B> extends HttpRequest<B>, MutableHttpMessag
     MutableHttpRequest<B> uri(URI uri);
 
     @Override
-    MutableHttpRequest<B> body(B body);
+    <T> MutableHttpRequest<T> body(T body);
 
     @Override
     MutableHttpHeaders getHeaders();
 
     @Override
     MutableHttpParameters getParameters();
+
+    /**
+     * Alters the URI of the request with the given URI builder.
+     *
+     * @param consumer A consumer that accepts the URI
+     * @return The modified request
+     */
+    default @NonNull MutableHttpRequest<B> uri(@NonNull Consumer<UriBuilder> consumer) {
+        Objects.requireNonNull(consumer, "URI builder cannot be null");
+        UriBuilder builder = UriBuilder.of(getUri());
+        consumer.accept(builder);
+        return uri(builder.build());
+    }
 
     /**
      * Sets the acceptable {@link MediaType} instances via the {@link HttpHeaders#ACCEPT} header.
@@ -67,7 +95,21 @@ public interface MutableHttpRequest<B> extends HttpRequest<B>, MutableHttpMessag
      */
     default MutableHttpRequest<B> accept(MediaType... mediaTypes) {
         if (ArrayUtils.isNotEmpty(mediaTypes)) {
-            String acceptString = Arrays.stream(mediaTypes).collect(Collectors.joining(","));
+            String acceptString = String.join(",", mediaTypes);
+            header(HttpHeaders.ACCEPT, acceptString);
+        }
+        return this;
+    }
+
+    /**
+     * Sets the acceptable {@link MediaType} instances via the {@link HttpHeaders#ACCEPT} header.
+     *
+     * @param mediaTypes The media types
+     * @return This request
+     */
+    default MutableHttpRequest<B> accept(CharSequence... mediaTypes) {
+        if (ArrayUtils.isNotEmpty(mediaTypes)) {
+            String acceptString = String.join(",", mediaTypes);
             header(HttpHeaders.ACCEPT, acceptString);
         }
         return this;

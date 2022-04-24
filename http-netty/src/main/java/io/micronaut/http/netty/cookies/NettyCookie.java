@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,14 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.netty.cookies;
 
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
 import io.micronaut.http.cookie.Cookie;
+import io.micronaut.http.cookie.SameSite;
 import io.netty.handler.codec.http.cookie.DefaultCookie;
 
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A wrapper around a Netty cookie.
@@ -59,12 +62,12 @@ public class NettyCookie implements Cookie {
     }
 
     @Override
-    public String getName() {
+    public @NonNull String getName() {
         return nettyCookie.name();
     }
 
     @Override
-    public String getValue() {
+    public @NonNull String getValue() {
         return nettyCookie.value();
     }
 
@@ -94,37 +97,56 @@ public class NettyCookie implements Cookie {
     }
 
     @Override
-    public Cookie maxAge(long maxAge) {
+    public @NonNull Cookie maxAge(long maxAge) {
         nettyCookie.setMaxAge(maxAge);
         return this;
     }
 
     @Override
-    public Cookie value(String value) {
+    public Optional<SameSite> getSameSite() {
+        if (nettyCookie instanceof io.netty.handler.codec.http.cookie.DefaultCookie) {
+            io.netty.handler.codec.http.cookie.CookieHeaderNames.SameSite sameSite = ((io.netty.handler.codec.http.cookie.DefaultCookie) nettyCookie).sameSite();
+            if (sameSite != null) {
+                return Optional.of(SameSite.valueOf(sameSite.name()));
+            }
+        }
+        return Optional.empty();
+    }
+
+    @Override
+    public @NonNull Cookie sameSite(@Nullable SameSite sameSite) {
+        if (nettyCookie instanceof io.netty.handler.codec.http.cookie.DefaultCookie) {
+            ((io.netty.handler.codec.http.cookie.DefaultCookie) nettyCookie).setSameSite(sameSite == null ? null : io.netty.handler.codec.http.cookie.CookieHeaderNames.SameSite.valueOf(sameSite.name()));
+        }
+        return this;
+    }
+
+    @Override
+    public @NonNull Cookie value(@NonNull String value) {
         nettyCookie.setValue(value);
         return this;
     }
 
     @Override
-    public Cookie domain(String domain) {
+    public @NonNull Cookie domain(String domain) {
         nettyCookie.setDomain(domain);
         return this;
     }
 
     @Override
-    public Cookie path(String path) {
+    public @NonNull Cookie path(String path) {
         nettyCookie.setPath(path);
         return this;
     }
 
     @Override
-    public Cookie secure(boolean secure) {
+    public @NonNull Cookie secure(boolean secure) {
         nettyCookie.setSecure(secure);
         return this;
     }
 
     @Override
-    public Cookie httpOnly(boolean httpOnly) {
+    public @NonNull Cookie httpOnly(boolean httpOnly) {
         nettyCookie.setHttpOnly(httpOnly);
         return this;
     }

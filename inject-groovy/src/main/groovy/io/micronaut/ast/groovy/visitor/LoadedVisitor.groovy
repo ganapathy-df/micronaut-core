@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,13 +13,16 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.ast.groovy.visitor
 
+import io.micronaut.core.annotation.Nullable
 import groovy.transform.CompileStatic
 import io.micronaut.ast.groovy.utils.AstAnnotationUtils
 import io.micronaut.core.annotation.AnnotationMetadata
 import io.micronaut.core.annotation.Internal
+import io.micronaut.core.order.Ordered
+import io.micronaut.inject.ast.ClassElement
+import io.micronaut.inject.ast.Element
 import io.micronaut.inject.visitor.TypeElementVisitor
 import org.codehaus.groovy.ast.AnnotatedNode
 import org.codehaus.groovy.ast.ClassHelper
@@ -30,6 +33,7 @@ import org.codehaus.groovy.ast.GenericsType
 import org.codehaus.groovy.ast.MethodNode
 import org.codehaus.groovy.ast.PropertyNode
 import org.codehaus.groovy.ast.Variable
+import org.codehaus.groovy.control.CompilationUnit
 import org.codehaus.groovy.control.SourceUnit
 
 /**
@@ -42,14 +46,19 @@ import org.codehaus.groovy.control.SourceUnit
  */
 @Internal
 @CompileStatic
-class LoadedVisitor {
+class LoadedVisitor implements Ordered {
 
     private final SourceUnit sourceUnit
     private final TypeElementVisitor visitor
     private final String classAnnotation
     private final String elementAnnotation
+    private ClassElement currentClassElement
+    private final CompilationUnit compilationUnit
 
-    LoadedVisitor( SourceUnit source, TypeElementVisitor visitor) {
+    private static final String OBJECT_CLASS = Object.class.getName()
+
+    LoadedVisitor(SourceUnit source, CompilationUnit compilationUnit, TypeElementVisitor visitor) {
+        this.compilationUnit = compilationUnit
         this.sourceUnit = source
         this.visitor = visitor
         ClassNode classNode = ClassHelper.make(visitor.getClass())
@@ -57,15 +66,35 @@ class LoadedVisitor {
             it.name == TypeElementVisitor.class.name
         }
         GenericsType[] generics = definition.getGenericsTypes()
-        classAnnotation = generics[0].type.name
-        elementAnnotation = generics[1].type.name
+        if (generics) {
+            String typeName = generics[0].type.name
+            if (typeName == OBJECT_CLASS) {
+                classAnnotation = visitor.getClassType()
+            } else {
+                classAnnotation = typeName
+            }
+            String elementName = generics[1].type.name
+            if (elementName == OBJECT_CLASS) {
+                elementAnnotation = visitor.getElementType()
+            } else {
+                elementAnnotation = elementName
+            }
+        } else {
+            classAnnotation = ClassHelper.OBJECT
+            elementAnnotation = ClassHelper.OBJECT
+        }
     }
 
     TypeElementVisitor getVisitor() {
         visitor
     }
 
+    @Override
+    int getOrder() {
+        return getVisitor().getOrder()
+    }
 
+    @Override
     boolean equals(o) {
         if (this.is(o)) return true
         if (getClass() != o.class) return false
@@ -77,6 +106,7 @@ class LoadedVisitor {
         return true
     }
 
+    @Override
     int hashCode() {
         return visitor.getClass().hashCode()
     }
@@ -93,7 +123,7 @@ class LoadedVisitor {
         if (classAnnotation == ClassHelper.OBJECT) {
             return true
         }
-        AnnotationMetadata annotationMetadata = AstAnnotationUtils.getAnnotationMetadata(sourceUnit, classNode)
+        AnnotationMetadata annotationMetadata = AstAnnotationUtils.getAnnotationMetadata(sourceUnit, compilationUnit, classNode)
         return annotationMetadata.hasStereotype(classAnnotation)
     }
 
@@ -115,27 +145,35 @@ class LoadedVisitor {
      * @param annotationMetadata The annotation data for the node
      * @param visitorContext the Groovy visitor context
      */
-    void visit(AnnotatedNode annotatedNode, AnnotationMetadata annotationMetadata, GroovyVisitorContext visitorContext) {
+    @Nullable Element visit(AnnotatedNode annotatedNode, AnnotationMetadata annotationMetadata, GroovyVisitorContext visitorContext) {
         switch (annotatedNode.getClass()) {
-            case FieldNode:
             case PropertyNode:
-                visitor.visitField(new GroovyFieldElement(sourceUnit, (Variable) annotatedNode, annotationMetadata), visitorContext)
-                break
+                def e = visitorContext.getElementFactory().newFieldElement((PropertyNode) annotatedNode, annotationMetadata)
+                visitor.visitField(e, visitorContext)
+                return e
+            case FieldNode:
+                def e = visitorContext.getElementFactory().newFieldElement(currentClassElement, (FieldNode) annotatedNode, annotationMetadata)
+                visitor.visitField(e, visitorContext)
+                return e
             case ConstructorNode:
-                visitor.visitConstructor(new GroovyConstructorElement(sourceUnit, (ConstructorNode) annotatedNode, annotationMetadata), visitorContext)
-                break
+                def e = visitorContext.getElementFactory().newConstructorElement(currentClassElement, (ConstructorNode) annotatedNode, annotationMetadata)
+                visitor.visitConstructor(e, visitorContext)
+                return e
             case MethodNode:
-                visitor.visitMethod(new GroovyMethodElement(sourceUnit, (MethodNode) annotatedNode, annotationMetadata), visitorContext)
+                if (currentClassElement != null) {
+                    def e = visitorContext.getElementFactory().newSourceMethodElement(currentClassElement, (MethodNode) annotatedNode, annotationMetadata)
+                    visitor.visitMethod(e, visitorContext)
+                    return e
+                }
                 break
             case ClassNode:
                 ClassNode cn = (ClassNode) annotatedNode
-                if (cn.isEnum()) {
-
-                } else {
-                    visitor.visitClass(new GroovyClassElement(sourceUnit, cn, annotationMetadata), visitorContext)
-                }
-                break
+                currentClassElement = visitorContext.getElementFactory().newSourceClassElement(cn, annotationMetadata)
+                visitor.visitClass(currentClassElement, visitorContext)
+                return currentClassElement
         }
+
+        return null
     }
 
     void start(GroovyVisitorContext visitorContext) {

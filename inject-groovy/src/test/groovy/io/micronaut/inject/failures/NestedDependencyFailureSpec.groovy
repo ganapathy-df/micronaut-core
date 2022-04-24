@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -20,8 +20,8 @@ import io.micronaut.context.DefaultBeanContext
 import io.micronaut.context.exceptions.DependencyInjectionException
 import spock.lang.Specification
 
-import javax.inject.Inject
-import javax.inject.Singleton
+import jakarta.inject.Inject
+import jakarta.inject.Singleton
 
 /**
  * Created by graemerocher on 16/05/2017.
@@ -39,11 +39,11 @@ class NestedDependencyFailureSpec extends Specification {
         then:"The implementation is injected"
         def e = thrown(DependencyInjectionException)
 
-        e.message.normalize() == '''\
+        e.message.normalize().contains( '''\
 Failed to inject value for parameter [d] of class: io.micronaut.inject.failures.NestedDependencyFailureSpec$C
 
-Message: No bean of type [io.micronaut.inject.failures.NestedDependencyFailureSpec$D] exists. Ensure the class is declared a bean and if you are using Java or Kotlin make sure you have enabled annotation processing.
-Path Taken: B.a --> new A([C c]) --> new C([D d])'''
+Message: No bean of type [io.micronaut.inject.failures.NestedDependencyFailureSpec$D] exists.''')
+        e.message.normalize().contains('Path Taken: new B() --> B.a --> new A([C c]) --> new C([D d])')
     }
 
     static class D {}

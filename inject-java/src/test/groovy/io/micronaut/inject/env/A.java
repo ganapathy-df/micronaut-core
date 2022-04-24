@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -17,8 +17,9 @@ package io.micronaut.inject.env;
 
 import io.micronaut.context.env.DefaultEnvironment;
 import io.micronaut.context.env.Environment;
+import io.micronaut.core.io.ResourceLoader;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 public class A {
     @Inject
@@ -26,4 +27,7 @@ public class A {
 
     @Inject
     DefaultEnvironment defaultEnvironment;
+
+    @Inject
+    ResourceLoader resourceLoader;
 }

@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,18 +13,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.inject.configuration
 
 import groovy.json.JsonSlurper
-import io.micronaut.AbstractBeanDefinitionSpec
+import io.micronaut.ast.transform.test.AbstractBeanDefinitionSpec
 import io.micronaut.ast.groovy.config.GroovyConfigurationMetadataBuilder
 import org.codehaus.groovy.ast.ClassNode
 /**
  * @author graemerocher
  * @since 1.0
  */
-class GroovyConfigurationMetadataBuilderSpec extends AbstractBeanDefinitionSpec{
+class GroovyConfigurationMetadataBuilderSpec extends AbstractBeanDefinitionSpec {
 
     void "test build configuration metadata with annotation aliases"() {
         given:
@@ -48,7 +47,7 @@ class MyProperties {
 ''', "test.MyProperties")
 
         when:
-        GroovyConfigurationMetadataBuilder builder = new GroovyConfigurationMetadataBuilder()
+        GroovyConfigurationMetadataBuilder builder = new GroovyConfigurationMetadataBuilder(null, null)
         def configurationMetadata = builder.visitProperties(element, "some description")
         def propertyMetadata = builder.visitProperty(element, element, "java.lang.String", "setterTest", "some description", null)
 

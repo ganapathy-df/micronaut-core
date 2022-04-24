@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,20 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.session.http;
 
 import io.micronaut.context.annotation.Requires;
+import io.micronaut.core.util.StringUtils;
 import io.micronaut.http.HttpRequest;
 import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.cookie.Cookie;
 import io.micronaut.http.cookie.Cookies;
 import io.micronaut.session.Session;
 import io.micronaut.session.SessionSettings;
+import jakarta.inject.Singleton;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import javax.inject.Singleton;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -38,7 +38,7 @@ import java.util.Map;
  * @since 1.0
  */
 @Singleton
-@Requires(property = SessionSettings.HTTP_COOKIE_STRATEGY, notEquals = "false")
+@Requires(property = SessionSettings.HTTP_COOKIE_STRATEGY, notEquals = StringUtils.FALSE)
 public class CookieHttpSessionStrategy implements HttpSessionIdStrategy {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(CookieHttpSessionStrategy.class);
@@ -91,26 +91,28 @@ public class CookieHttpSessionStrategy implements HttpSessionIdStrategy {
                          MutableHttpResponse<?> response,
                          Session session) {
         Cookie cookie;
+        HttpSessionConfiguration configuration = getConfiguration();
         if (session.isExpired()) {
-            cookie = Cookie.of(getConfiguration().getCookieName(), "")
+            cookie = Cookie.of(configuration.getCookieName(), "")
                 .maxAge(0);
         } else {
             String cookieValue = cookieHttpSessionIdGenerator.cookieValueFromSession(session);
             if (LOGGER.isDebugEnabled()) {
                 LOGGER.debug("path {}, cookie value {}", request.getPath(), cookieValue);
             }
-            cookie = Cookie.of(getConfiguration().getCookieName(), cookieValue);
-            if (getConfiguration().isRememberMe()) {
+            cookie = Cookie.of(configuration.getCookieName(), cookieValue);
+            if (configuration.isRememberMe()) {
                 cookie.maxAge(Integer.MAX_VALUE);
             } else {
-                getConfiguration().getCookieMaxAge().ifPresent(cookie::maxAge);
+                configuration.getCookieMaxAge().ifPresent(cookie::maxAge);
             }
         }
 
-        cookie.httpOnly(true).secure(request.isSecure());
+        cookie.httpOnly(true).secure(configuration.isCookieSecure().orElse(request.isSecure()));
 
-        getConfiguration().getCookiePath().ifPresent(cookie::path);
-        getConfiguration().getDomainName().ifPresent(cookie::domain);
+        configuration.getCookiePath().ifPresent(cookie::path);
+        configuration.getDomainName().ifPresent(cookie::domain);
+        configuration.getCookieSameSite().ifPresent(cookie::sameSite);
 
         response.cookie(cookie);
     }

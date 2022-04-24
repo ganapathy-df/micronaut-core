@@ -1,3 +1,5 @@
+import org.apache.tools.ant.taskdefs.condition.Os
+
 buildscript {
     repositories {
         maven { url "https://plugins.gradle.org/m2/" }
@@ -7,34 +9,92 @@ buildscript {
     }
 }
 
-ext {
-    bomExclude = true
+plugins {
+    id "io.micronaut.build.internal.convention-test-library"
+    id 'io.micronaut.build.internal.functional-test'
+    id 'java-test-fixtures'
 }
 
-dependencies {
-    testCompile project(":http-server-netty")
-    testCompile project(":http-client")
-    testCompile project(":configurations:hibernate-validator")
-    testCompile project(":inject-groovy")
-    testCompile project(":inject-java")
-    testCompile project(":tracing")
-    testCompile project(":management")
-
-    testCompile dependencyVersion("jaeger")
-    testCompile dependencyModuleVersion("groovy", "groovy-json")
-    // tag::testcontainers-dependencies[]
-    testCompile "org.testcontainers:spock:1.10.1"
-    // end::testcontainers-dependencies[]
-
-    testRuntime dependencyVersion("tomcatJdbc")
-    testRuntime dependencyVersion("h2")
-    testRuntime "ch.qos.logback:logback-classic:1.2.3"
+micronautBuild {
+    core {
+        usesMicronautTestJunit()
+        usesMicronautTestSpock()
+    }
 }
 
 apply from: "${rootProject.projectDir}/gradle/geb.gradle"
 apply from: "${rootProject.projectDir}/gradle/webdriverbinaries.gradle"
 
-//tasks.withType(Test) {
+dependencies {
+    annotationProcessor project(":inject-java")
+    api project(":inject")
+
+    testImplementation project(":context")
+    testImplementation libs.managed.netty.codec.http
+    testImplementation project(":http-server-netty")
+    testImplementation project(":http-client")
+    testImplementation project(":validation")
+    testImplementation project(":inject-groovy")
+    testImplementation project(":inject-java")
+    testImplementation project(":inject-java-test")
+    testImplementation project(":management")
+    testImplementation project(":runtime")
+    testImplementation project(":inject")
+    testImplementation project(":function-client")
+    testImplementation project(":function-web")
+    testImplementation project(":session")
+
+    // Adding these for now since micronaut-test isnt resolving correctly ... probably need to upgrade gradle there too
+    testImplementation libs.junit.jupiter.api
+
+    testImplementation libs.managed.jcache
+    testImplementation(libs.micronaut.tracing.jaeger) {
+        exclude module: 'micronaut-bom'
+        exclude module: 'micronaut-http-client'
+        exclude module: 'micronaut-inject'
+        exclude module: 'micronaut-runtime'
+    }
+    testImplementation libs.managed.groovy.json
+    // tag::testcontainers-dependencies[]
+    testImplementation libs.testcontainers.spock
+    // end::testcontainers-dependencies[]
+    testImplementation libs.awaitility
+
+    testAnnotationProcessor project(":test-suite-helper")
+    testAnnotationProcessor project(":inject-java")
+    testAnnotationProcessor project(":test-suite")
+
+    testRuntimeOnly libs.managed.h2
+    testRuntimeOnly libs.junit.vintage
+    testRuntimeOnly libs.managed.logback
+    testRuntimeOnly libs.aws.java.sdk.lambda
+
+    // needed for HTTP/2 tests
+    testImplementation platform(libs.boms.netty)
+    testImplementation libs.netty.tcnative
+    testImplementation libs.netty.tcnative.boringssl
+    testImplementation(libs.netty.tcnative.boringssl) {
+        artifact {
+            classifier = Os.isFamily(Os.FAMILY_MAC) ? (Os.isArch("aarch64") ? "osx-aarch_64" : "osx-x86_64") : 'linux-x86_64'
+        }
+    }
+    testImplementation libs.logbook.netty
+    testImplementation libs.managed.logback
+
+    if (JavaVersion.current().isCompatibleWith(JavaVersion.VERSION_15)) {
+        testImplementation libs.bcpkix
+    }
+
+    testImplementation libs.managed.reactor
+
+    testFixturesApi libs.managed.spock
+    testFixturesApi libs.managed.groovy
+}
+
+//tasks.withType(Test).configureEach {
+//    useJUnitPlatform()
+//
+//    jvmArgs('-Dio.netty.leakDetection.level=paranoid')
 //    testLogging {
 //        showStandardStreams = true
 //    }
@@ -47,3 +107,6 @@ apply from: "${rootProject.projectDir}/gradle/webdriverbinaries.gradle"
 //        System.out.flush()
 //    }
 //}
+
+//compileTestJava.options.fork = true
+//compileTestJava.options.forkOptions.jvmArgs = ['-Xdebug', '-Xrunjdwp:transport=dt_socket,server=y,suspend=y,address=5005']

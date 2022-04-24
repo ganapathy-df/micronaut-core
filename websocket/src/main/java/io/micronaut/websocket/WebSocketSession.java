@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,9 +13,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.websocket;
 
+import io.micronaut.core.annotation.NonNull;
 import io.micronaut.core.convert.value.ConvertibleMultiValues;
 import io.micronaut.core.convert.value.ConvertibleValues;
 import io.micronaut.core.convert.value.MutableConvertibleValues;
@@ -57,6 +57,12 @@ public interface WebSocketSession extends MutableConvertibleValues<Object>, Auto
     boolean isOpen();
 
     /**
+     * Whether the session is writable. It may not be writable, if the buffer is currently full
+     * @return True if it is
+     */
+    boolean isWritable();
+
+    /**
      * Whether the connection is secure.
      *
      * @return True if it is secure
@@ -86,6 +92,9 @@ public interface WebSocketSession extends MutableConvertibleValues<Object>, Auto
 
     /**
      * Send the given message to the remote peer.
+     * The resulting {@link Publisher} does not start sending until subscribed to.
+     * If you return it from Micronaut annotated methods such as {@link io.micronaut.websocket.annotation.OnOpen} and {@link io.micronaut.websocket.annotation.OnMessage},
+     * Micronaut will subscribe to it and send the message without blocking.
      *
      * @param message The message
      * @param mediaType The media type of the message. Used to lookup an appropriate codec via the {@link io.micronaut.http.codec.MediaTypeCodecRegistry}.
@@ -100,7 +109,7 @@ public interface WebSocketSession extends MutableConvertibleValues<Object>, Auto
      * @param message The message
      *  @param mediaType The media type of the message. Used to lookup an appropriate codec via the {@link io.micronaut.http.codec.MediaTypeCodecRegistry}.
      * @param <T> The message type
-     * @return A {@link Publisher} that either emits an error or emits the message once it has been published successfully.
+     * @return A {@link CompletableFuture} that tracks the execution. {@link CompletableFuture#get()} and related methods will return the message on success, on error throw the underlying Exception.
      */
     <T> CompletableFuture<T> sendAsync(T message, MediaType mediaType);
 
@@ -122,6 +131,9 @@ public interface WebSocketSession extends MutableConvertibleValues<Object>, Auto
 
     /**
      * Send the given message to the remote peer.
+     * The resulting {@link Publisher} does not start sending until subscribed to.
+     * If you return it from Micronaut annotated methods such as {@link io.micronaut.websocket.annotation.OnOpen} and {@link io.micronaut.websocket.annotation.OnMessage},
+     * Micronaut will subscribe to it and send the message without blocking.
      *
      * @param message The message
      * @param <T> The message type
@@ -136,7 +148,7 @@ public interface WebSocketSession extends MutableConvertibleValues<Object>, Auto
      *
      * @param message The message
      * @param <T> The message type
-     * @return A {@link Publisher} that either emits an error or emits the message once it has been published successfully.
+     * @return A {@link CompletableFuture} that tracks the execution. {@link CompletableFuture#get()} and related methods will return the message on success, on error throw the underlying Exception.
      */
     default <T> CompletableFuture<T> sendAsync(T message) {
         return sendAsync(message, MediaType.APPLICATION_JSON_TYPE);
@@ -149,6 +161,20 @@ public interface WebSocketSession extends MutableConvertibleValues<Object>, Auto
      */
     default void sendSync(Object message) {
         sendSync(message, MediaType.APPLICATION_JSON_TYPE);
+    }
+
+    /**
+     * Send a ping through this WebSocket. The pong reply can be intercepted using a
+     * {@link io.micronaut.websocket.annotation.OnMessage @OnMessage} method that accepts a
+     * {@link WebSocketPongMessage}.
+     *
+     * @param content The content of the ping. The remote should return the same content in its
+     * {@link WebSocketPongMessage}.
+     * @return A future that completes when the ping has been sent. (Not when the pong has been received!)
+     */
+    @NonNull
+    default CompletableFuture<?> sendPingAsync(@NonNull byte[] content) {
+        throw new UnsupportedOperationException("Ping not supported by this implementation");
     }
 
     /**

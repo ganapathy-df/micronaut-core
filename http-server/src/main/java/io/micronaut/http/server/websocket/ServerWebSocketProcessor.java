@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.server.websocket;
 
 import io.micronaut.context.ExecutionHandleLocator;
@@ -27,8 +26,8 @@ import io.micronaut.web.router.UriRoute;
 import io.micronaut.websocket.annotation.OnMessage;
 import io.micronaut.websocket.annotation.OnOpen;
 import io.micronaut.websocket.annotation.ServerWebSocket;
+import jakarta.inject.Singleton;
 
-import javax.inject.Singleton;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -64,7 +63,7 @@ public class ServerWebSocketProcessor extends DefaultRouteBuilder implements Exe
 
         if (method.isAnnotationPresent(OnMessage.class) || method.isAnnotationPresent(OnOpen.class)) {
             mappedWebSockets.add(beanType);
-            String uri = beanDefinition.getValue(ServerWebSocket.class, String.class).orElse("/ws");
+            String uri = beanDefinition.stringValue(ServerWebSocket.class).orElse("/ws");
 
             UriRoute route = GET(uri, method);
 

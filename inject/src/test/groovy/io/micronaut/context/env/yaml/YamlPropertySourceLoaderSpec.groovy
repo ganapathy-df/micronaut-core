@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,16 +15,25 @@
  */
 package io.micronaut.context.env.yaml
 
+import io.micronaut.context.ApplicationContext
 import io.micronaut.context.env.DefaultEnvironment
 import io.micronaut.context.env.Environment
 import io.micronaut.context.env.PropertySourceLoader
 import io.micronaut.core.io.service.ServiceDefinition
 import io.micronaut.core.io.service.SoftServiceLoader
+import io.micronaut.core.version.SemanticVersion
+import spock.lang.Requires
 import spock.lang.Specification
+import spock.util.environment.Jvm
 
 /**
  * Created by graemerocher on 15/06/2017.
  */
+// fails due to https://issues.apache.org/jira/browse/GROOVY-10145
+@Requires({
+    SemanticVersion.isAtLeastMajorMinor(GroovySystem.version, 4, 0) ||
+            !Jvm.current.isJava16Compatible()
+})
 class YamlPropertySourceLoaderSpec extends Specification {
 
     void "test load yaml properties source"() {
@@ -33,7 +42,7 @@ class YamlPropertySourceLoaderSpec extends Specification {
         serviceDefinition.isPresent() >> true
         serviceDefinition.load() >> new YamlPropertySourceLoader()
 
-        Environment env = new DefaultEnvironment(["test"] as String[]) {
+        Environment env = new DefaultEnvironment({ ["test"] }) {
             @Override
             protected SoftServiceLoader<PropertySourceLoader> readPropertySourceLoaders() {
                 GroovyClassLoader gcl = new GroovyClassLoader()
@@ -81,12 +90,12 @@ dataSource:
         env.get("data-source.jmx-export", boolean).get() == true
     }
 
-    void "test datasources.default: {}"() {
+    void "test datasources default"() {
         def serviceDefinition = Mock(ServiceDefinition)
         serviceDefinition.isPresent() >> true
         serviceDefinition.load() >> new YamlPropertySourceLoader()
 
-        Environment env = new DefaultEnvironment(["test"] as String[]) {
+        Environment env = new DefaultEnvironment({ ["test"] }) {
             @Override
             protected SoftServiceLoader<PropertySourceLoader> readPropertySourceLoaders() {
                 GroovyClassLoader gcl = new GroovyClassLoader()
@@ -121,5 +130,21 @@ datasources.default: {}
         env.get("datasources.default", String).get() == "{}"
         env.get("datasources.default", Map).get() == [:]
 
+    }
+
+    void "test properties are resolved from yaml files"() {
+        ApplicationContext ctx = ApplicationContext.run("other")
+
+        expect:
+        ctx.containsProperty("other-config")
+    }
+
+    void "test properties with spaces"() {
+        ApplicationContext ctx = ApplicationContext.run("spaces")
+
+        expect:
+        ctx.containsProperties("test")
+        ctx.containsProperty("test.Key with space")
+        ctx.containsProperty("test.key-with-space")
     }
 }

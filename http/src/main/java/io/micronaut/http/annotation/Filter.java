@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,20 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.annotation;
 
-import static java.lang.annotation.RetentionPolicy.RUNTIME;
-
 import io.micronaut.context.annotation.AliasFor;
-import io.micronaut.context.annotation.Executable;
 import io.micronaut.http.HttpMethod;
+import io.micronaut.http.filter.FilterPatternStyle;
+import jakarta.inject.Singleton;
 
-import javax.inject.Singleton;
 import java.lang.annotation.Documented;
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.Target;
+
+import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 /**
  * <p>An annotation that can be applied to classes that implement {@link io.micronaut.http.filter.HttpFilter} to
@@ -41,13 +40,22 @@ import java.lang.annotation.Target;
 @Documented
 @Retention(RUNTIME)
 @Target(ElementType.TYPE)
-@Executable
 public @interface Filter {
+
+    /**
+     * Pattern used to match all requests.
+     */
+    String MATCH_ALL_PATTERN = "/**";
 
     /**
      * @return The patterns this filter should match
      */
     String[] value() default {};
+
+    /**
+     * @return The style of pattern this filter uses
+     */
+    FilterPatternStyle patternStyle() default FilterPatternStyle.ANT;
 
     /**
      * Same as {@link #value()}.

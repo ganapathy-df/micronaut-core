@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,11 +16,9 @@
 package io.micronaut.aop.factory;
 
 import io.micronaut.aop.simple.Mutating;
-import io.micronaut.context.annotation.Bean;
-import io.micronaut.context.annotation.Factory;
-import io.micronaut.context.annotation.Primary;
+import io.micronaut.context.annotation.*;
 
-import javax.inject.Named;
+import jakarta.inject.Named;
 
 /**
  * @author Graeme Rocher
@@ -29,16 +27,18 @@ import javax.inject.Named;
 @Factory
 public class InterfaceFactory {
 
-    @Bean
+    @Prototype
     @Mutating("name")
     @Primary
+    @Executable
     InterfaceClass interfaceClass() {
         return new InterfaceImpl();
     }
 
-    @Bean
+    @Prototype
     @Mutating("name")
     @Named("another")
+    @Executable
     InterfaceClass anotherImpl() {
         return new InterfaceImpl();
     }

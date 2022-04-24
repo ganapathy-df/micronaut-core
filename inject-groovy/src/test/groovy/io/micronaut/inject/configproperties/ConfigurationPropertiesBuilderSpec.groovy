@@ -1,16 +1,33 @@
+/*
+ * Copyright 2017-2019 original authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
 package io.micronaut.inject.configproperties
 
-import io.micronaut.AbstractBeanDefinitionSpec
+import io.micronaut.ast.transform.test.AbstractBeanDefinitionSpec
 import io.micronaut.context.ApplicationContext
+import io.micronaut.context.env.PropertySource
 import io.micronaut.inject.BeanDefinition
 import io.micronaut.inject.BeanFactory
 import org.neo4j.driver.v1.Config
 
 class ConfigurationPropertiesBuilderSpec extends AbstractBeanDefinitionSpec {
+
     void "test configuration builder on method"() {
         given:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.MyPropertiesAA', '''
-package test;
+        BeanDefinition beanDefinition = buildBeanDefinition('cpbtest1.MyPropertiesAA', '''
+package cpbtest1;
 
 import io.micronaut.context.annotation.*
 
@@ -69,8 +86,8 @@ class TestAA {
 
     void "test configuration builder with includes"() {
         given:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.MyPropertiesA', '''
-package test;
+        BeanDefinition beanDefinition = buildBeanDefinition('cpbtest2.MyPropertiesA', '''
+package cpbtest2;
 
 import io.micronaut.context.annotation.*
 
@@ -122,8 +139,8 @@ class TestA {
 
     void "test configuration builder with factory method and properties"() {
         given:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.MyPropertiesB', '''
-package test
+        BeanDefinition beanDefinition = buildBeanDefinition('cpbtest3.MyPropertiesB', '''
+package cpbtest3
 
 import io.micronaut.context.annotation.*
 
@@ -159,8 +176,8 @@ class TestB {
 
     void "test catch and log NoSuchMethodError for when underlying builder changes"() {
         given:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.MyProperties', '''
-package test
+        BeanDefinition beanDefinition = buildBeanDefinition('cpbtest4.MyProperties', '''
+package cpbtest4
 
 import io.micronaut.context.annotation.*
 
@@ -190,8 +207,8 @@ class TestC {
 
     void "test with groovy properties"() {
         given:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.MyProperties', '''
-package test
+        BeanDefinition beanDefinition = buildBeanDefinition('cpbtest5.MyProperties', '''
+package cpbtest5
 
 import io.micronaut.context.annotation.*
 
@@ -236,8 +253,8 @@ class TestD {
 
     void "test different inject types for config properties"() {
         when:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.Neo4jProperties', '''
-package test
+        BeanDefinition beanDefinition = buildBeanDefinition('cpbtest6.Neo4jProperties', '''
+package cpbtest6
 
 import io.micronaut.context.annotation.*
 import org.neo4j.driver.v1.*
@@ -282,8 +299,8 @@ class Neo4jProperties {
 
     void "test specifying a configuration prefix"() {
         when:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.Neo4jProperties', '''
-package test
+        BeanDefinition beanDefinition = buildBeanDefinition('cpbtest7.Neo4jProperties', '''
+package cpbtest7
 
 import io.micronaut.context.annotation.*
 import org.neo4j.driver.v1.*
@@ -328,10 +345,58 @@ class Neo4jProperties {
         config.logLeakedSessions()
     }
 
+    void "test specifying a configuration prefix with value"() {
+        when:
+        BeanDefinition beanDefinition = buildBeanDefinition('cpbtest8.Neo4jProperties', '''
+package cpbtest8
+
+import io.micronaut.context.annotation.*
+import org.neo4j.driver.v1.*
+
+@ConfigurationProperties("neo4j.test")
+class Neo4jProperties {
+
+    protected java.net.URI uri
+    
+    @ConfigurationBuilder(
+        prefixes="with", 
+        allowZeroArgs=true,
+        value="options"
+    )
+    Config.ConfigBuilder options = Config.build()
+   
+}
+''')
+        then:
+        beanDefinition.injectedFields.size() == 1
+        beanDefinition.injectedFields.first().name == 'uri'
+
+        when:
+        BeanFactory factory = beanDefinition
+        ApplicationContext applicationContext = ApplicationContext.run(
+                'neo4j.test.options.encryptionLevel':'none',
+                'neo4j.test.options.leakedSessionsLogging':true,
+                'neo4j.test.options.maxIdleSessions':2
+        )
+        def bean = factory.build(applicationContext, beanDefinition)
+
+        then:
+        bean != null
+        bean.options != null
+
+        when:
+        Config config = bean.options.toConfig()
+
+        then:
+        config.maxIdleConnectionPoolSize() == 2
+        config.encrypted() == true // deprecated properties are ignored
+        config.logLeakedSessions()
+    }
+
     void "test builder method long and TimeUnit arguments"() {
         when:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.Neo4jProperties', '''
-package test
+        BeanDefinition beanDefinition = buildBeanDefinition('cpbtest9.Neo4jProperties', '''
+package cpbtest9
 
 import io.micronaut.context.annotation.*
 import org.neo4j.driver.v1.*
@@ -372,8 +437,8 @@ class Neo4jProperties {
 
     void "test using a builder that is marked final"() {
         when:
-        BeanDefinition beanDefinition = buildBeanDefinition('test.Neo4jProperties', '''
-package test
+        BeanDefinition beanDefinition = buildBeanDefinition('cpbtest10.Neo4jProperties', '''
+package cpbtest10
 
 import io.micronaut.context.annotation.*
 import org.neo4j.driver.v1.*
@@ -405,4 +470,78 @@ class Neo4jProperties {
         then:
         config.idleTimeBeforeConnectionTest() == 17000
     }
+
+
+    void "test configuration builder that are interfaces"() {
+        given:
+        ApplicationContext ctx = buildContext('''
+package cpbtest11
+
+import io.micronaut.context.annotation.*
+
+@ConfigurationProperties("pool")    
+final class PoolConfig { 
+    
+    @ConfigurationBuilder(prefixes = [""])
+    public ConnectionPool.Builder builder = DefaultConnectionPool.builder()
+    
+}
+
+interface ConnectionPool {
+    
+    interface Builder {
+        Builder maxConcurrency(Integer maxConcurrency)
+        ConnectionPool build()
+    }
+    
+    int getMaxConcurrency()
+}
+
+class DefaultConnectionPool implements ConnectionPool {
+    private final int maxConcurrency
+    
+    DefaultConnectionPool(int maxConcurrency) {
+        this.maxConcurrency = maxConcurrency
+    }
+    
+    static ConnectionPool.Builder builder() {
+        return new DefaultBuilder()
+    }
+    
+    @Override 
+    int getMaxConcurrency() {
+        return maxConcurrency
+    }
+    
+    private static class DefaultBuilder implements ConnectionPool.Builder {
+    
+        private int maxConcurrency
+    
+        private DefaultBuilder() {
+        }
+    
+        @Override
+        ConnectionPool.Builder maxConcurrency(Integer maxConcurrency) {
+            this.maxConcurrency = maxConcurrency
+            return this
+        }
+        
+        ConnectionPool build() {
+            return new DefaultConnectionPool(maxConcurrency)
+        }
+    }
+}
+''')
+        ctx.getEnvironment().addPropertySource(PropertySource.of(["pool.max-concurrency": 123]))
+
+        when:
+        Class testProps = ctx.classLoader.loadClass("cpbtest11.PoolConfig")
+        def testPropBean = ctx.getBean(testProps)
+
+        then:
+        noExceptionThrown()
+        testPropBean.builder.build().getMaxConcurrency() == 123
+    }
+
+
 }

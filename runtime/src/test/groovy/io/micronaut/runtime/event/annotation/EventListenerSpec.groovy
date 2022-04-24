@@ -11,18 +11,12 @@ class EventListenerSpec extends Specification {
         ApplicationContext ctx = ApplicationContext.run()
 
         when:
-        TestListener t = ctx.getBean(TestListener)
-        GroovyListener g = ctx.getBean(GroovyListener)
         AsyncListener a = ctx.getBean(AsyncListener)
         PollingConditions conditions = new PollingConditions(timeout: 1)
 
         then:
-        !a.invoked
-        t.invoked
-        g.invoked
-
         conditions.eventually {
-            a.invoked
+            a.completableInvoked
         }
 
         cleanup:

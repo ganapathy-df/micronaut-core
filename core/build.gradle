@@ -1,31 +1,48 @@
-apply plugin: 'com.github.johnrengelman.shadow'
+plugins {
+    id "io.micronaut.build.internal.convention-core-library"
+}
 
-
-shadowJar {
-    dependencies {
-        exclude(dependency(dependencyVersion("slf4j")))
-        exclude(dependency(dependencyVersion("reactive.streams")))
-        exclude(dependency(dependencyVersion("jsr305")))
+micronautBuild {
+    core {
+        documented = false
     }
-    relocate "org.objectweb.asm", "io.micronaut.asm"
-    relocate "com.github.benmanes.caffeine", "io.micronaut.caffeine"
+}
+
+tasks.named("shadowJar") {
     exclude "module-info.class"
 }
 
-tasks.withType(com.github.jengelman.gradle.plugins.shadow.tasks.ConfigureShadowRelocation) { t ->
-    t.enabled = false
-}
-
 dependencies {
-    shadowCompile dependencyVersion("slf4j")
-    shadowCompile dependencyVersion("reactive.streams")
-    shadowCompile dependencyVersion("jsr305")
+    compileOnly libs.managed.jsr305
+    compileOnly libs.managed.graal
+    compileOnly libs.kotlin.stdlib
+    compileOnly libs.asm.tree
 
-    compile dependencyVersion("reactive.streams")
-    compile dependencyVersion("jsr305")
-    compile "org.ow2.asm:asm:$asmVersion"
-    compile "org.ow2.asm:asm-commons:$asmVersion"
-    compile "org.ow2.asm:asm-tree:$asmVersion"
-    compile "com.github.ben-manes.caffeine:caffeine:$caffeineVersion"
+    shadowCompile libs.bundles.asm
+    shadowCompile libs.asm.tree
+    shadowCompile(libs.caffeine) {
+        exclude group: "com.google.errorprone", module: "error_prone_annotations"
+        exclude group: "org.checkerframework", module: "checker-qual"
+    }
 }
 
+spotless {
+    java {
+        targetExclude '**/io/micronaut/core/io/scan/AnnotationClassReader.java',
+                '**/io/micronaut/core/io/scan/Attribute.java',
+                '**/io/micronaut/core/io/scan/Context.java',
+                '**/io/micronaut/core/util/clhm/**',
+                '**/io/micronaut/core/util/AntPathMatcher.java'
+    }
+    format 'javaMisc', {
+        targetExclude '**/io/micronaut/core/util/clhm/**'
+    }
+}
+
+def versionInfo = tasks.register("micronautVersionInfo", WriteProperties) {
+    outputFile = "${buildDir}/resources/version/micronaut-version.properties"
+    property 'micronaut.version', projectVersion
+}
+tasks.named("processResources") {
+    from(versionInfo)
+}

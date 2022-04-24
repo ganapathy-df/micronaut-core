@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,15 +17,15 @@ package io.micronaut.inject.factory
 
 import io.micronaut.context.BeanContext
 import io.micronaut.context.DefaultBeanContext
-import io.micronaut.context.annotation.Parameter
-import io.micronaut.context.annotation.Bean
 import io.micronaut.context.annotation.Factory
+import io.micronaut.context.annotation.Parameter
+import io.micronaut.context.annotation.Prototype
 import io.micronaut.context.exceptions.BeanInstantiationException
 import spock.lang.Specification
 
-import javax.annotation.PostConstruct
-import javax.inject.Inject
-import javax.inject.Singleton
+import jakarta.annotation.PostConstruct
+import jakarta.inject.Inject
+import jakarta.inject.Singleton
 
 /**
  * @author Graeme Rocher
@@ -54,7 +54,7 @@ class ParametrizedFactorySpec extends Specification  {
 
         then:
         def e = thrown(BeanInstantiationException)
-        e.message.contains('Missing bean arguments for type: io.micronaut.inject.factory.ParametrizedFactorySpec$C')
+        e.message.contains('Missing bean argument [int count] for type: io.micronaut.inject.factory.ParametrizedFactorySpec$C. Required arguments: int count')
 
     }
 
@@ -121,7 +121,6 @@ class ParametrizedFactorySpec extends Specification  {
             name = name.toUpperCase()
         }
 
-        @Bean
         @Singleton
         B get() {
             assert postConstructCalled : "post construct should have been called"
@@ -131,7 +130,7 @@ class ParametrizedFactorySpec extends Specification  {
             return new B(name: name )
         }
 
-        @Bean
+        @Prototype
         C buildC(B b, @Parameter int count) {
             return new C(b, count)
         }

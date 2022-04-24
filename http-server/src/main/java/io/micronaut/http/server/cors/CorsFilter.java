@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,23 +13,13 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.server.cors;
 
-import static io.micronaut.http.HttpHeaders.ACCESS_CONTROL_ALLOW_CREDENTIALS;
-import static io.micronaut.http.HttpHeaders.ACCESS_CONTROL_ALLOW_HEADERS;
-import static io.micronaut.http.HttpHeaders.ACCESS_CONTROL_ALLOW_METHODS;
-import static io.micronaut.http.HttpHeaders.ACCESS_CONTROL_ALLOW_ORIGIN;
-import static io.micronaut.http.HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS;
-import static io.micronaut.http.HttpHeaders.ACCESS_CONTROL_MAX_AGE;
-import static io.micronaut.http.HttpHeaders.ACCESS_CONTROL_REQUEST_HEADERS;
-import static io.micronaut.http.HttpHeaders.ACCESS_CONTROL_REQUEST_METHOD;
-import static io.micronaut.http.HttpHeaders.ORIGIN;
-import static io.micronaut.http.HttpHeaders.VARY;
-
 import io.micronaut.core.async.publisher.Publishers;
-import io.micronaut.core.order.Ordered;
-import io.micronaut.core.type.Argument;
+import io.micronaut.core.convert.ArgumentConversionContext;
+import io.micronaut.core.convert.ConversionContext;
+import io.micronaut.core.convert.ImmutableArgumentConversionContext;
+import io.micronaut.core.util.StringUtils;
 import io.micronaut.http.HttpHeaders;
 import io.micronaut.http.HttpMethod;
 import io.micronaut.http.HttpRequest;
@@ -39,6 +29,7 @@ import io.micronaut.http.MutableHttpResponse;
 import io.micronaut.http.annotation.Filter;
 import io.micronaut.http.filter.HttpServerFilter;
 import io.micronaut.http.filter.ServerFilterChain;
+import io.micronaut.http.filter.ServerFilterPhase;
 import io.micronaut.http.server.HttpServerConfiguration;
 import org.reactivestreams.Publisher;
 
@@ -47,6 +38,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
+
+import static io.micronaut.http.HttpHeaders.*;
 
 /**
  * Responsible for handling CORS requests and responses.
@@ -57,6 +51,8 @@ import java.util.regex.Pattern;
  */
 @Filter("/**")
 public class CorsFilter implements HttpServerFilter {
+
+    private static final ArgumentConversionContext<HttpMethod> CONVERSION_CONTEXT_HTTP_METHOD = ImmutableArgumentConversionContext.of(HttpMethod.class);
 
     protected final HttpServerConfiguration.CorsConfiguration corsConfiguration;
 
@@ -71,13 +67,12 @@ public class CorsFilter implements HttpServerFilter {
     public Publisher<MutableHttpResponse<?>> doFilter(HttpRequest<?> request, ServerFilterChain chain) {
         boolean originHeaderPresent = request.getHeaders().getOrigin().isPresent();
         if (originHeaderPresent) {
-            Optional<MutableHttpResponse<?>> response = handleRequest(request);
-            if (response.isPresent()) {
-                return Publishers.just(response.get());
+            MutableHttpResponse<?> response = handleRequest(request).orElse(null);
+            if (response != null) {
+                return Publishers.just(response);
             } else {
-                return Publishers.map(chain.proceed(request), mutableHttpResponse -> {
+                return Publishers.then(chain.proceed(request), mutableHttpResponse -> {
                     handleResponse(request, mutableHttpResponse);
-                    return mutableHttpResponse;
                 });
             }
         } else {
@@ -87,7 +82,7 @@ public class CorsFilter implements HttpServerFilter {
 
     @Override
     public int getOrder() {
-        return Ordered.HIGHEST_PRECEDENCE;
+        return ServerFilterPhase.METRICS.after();
     }
 
     /**
@@ -107,10 +102,9 @@ public class CorsFilter implements HttpServerFilter {
                 CorsOriginConfiguration config = optionalConfig.get();
 
                 if (CorsUtil.isPreflightRequest(request)) {
-                    Optional<HttpMethod> result = headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.class);
+                    Optional<HttpMethod> result = headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, CONVERSION_CONTEXT_HTTP_METHOD);
                     setAllowMethods(result.get(), response);
-                    Argument<List> type = Argument.of(List.class, String.class);
-                    Optional<List> allowedHeaders = headers.get(ACCESS_CONTROL_REQUEST_HEADERS, type);
+                    Optional<List<String>> allowedHeaders = headers.get(ACCESS_CONTROL_REQUEST_HEADERS, ConversionContext.LIST_OF_STRING);
                     allowedHeaders.ifPresent(val ->
                         setAllowHeaders(val, response)
                     );
@@ -150,21 +144,21 @@ public class CorsFilter implements HttpServerFilter {
                 List<HttpMethod> allowedMethods = config.getAllowedMethods();
 
                 if (!isAnyMethod(allowedMethods)) {
-                    HttpMethod methodToMatch = preflight ? headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, HttpMethod.class).orElse(requestMethod) : requestMethod;
+                    HttpMethod methodToMatch = preflight ? headers.getFirst(ACCESS_CONTROL_REQUEST_METHOD, CONVERSION_CONTEXT_HTTP_METHOD).orElse(requestMethod) : requestMethod;
                     if (allowedMethods.stream().noneMatch(method -> method.equals(methodToMatch))) {
                         return Optional.of(HttpResponse.status(HttpStatus.FORBIDDEN));
                     }
                 }
 
                 if (preflight) {
-                    Optional<List> accessControlHeaders = headers.get(ACCESS_CONTROL_REQUEST_HEADERS, Argument.of(List.class, String.class));
+                    Optional<List<String>> accessControlHeaders = headers.get(ACCESS_CONTROL_REQUEST_HEADERS, ConversionContext.LIST_OF_STRING);
 
                     List<String> allowedHeaders = config.getAllowedHeaders();
 
                     if (!isAny(allowedHeaders) && accessControlHeaders.isPresent()) {
                         if (!accessControlHeaders.get().stream()
                             .allMatch(header -> allowedHeaders.stream()
-                                .anyMatch(allowedHeader -> allowedHeader.equals(header.toString().trim())))) {
+                                .anyMatch(allowedHeader -> allowedHeader.equalsIgnoreCase(header.trim())))) {
                             return Optional.of(HttpResponse.status(HttpStatus.FORBIDDEN));
                         }
                     }
@@ -194,7 +188,14 @@ public class CorsFilter implements HttpServerFilter {
      * @param response       The {@link MutableHttpResponse} object
      */
     protected void setExposeHeaders(List<String> exposedHeaders, MutableHttpResponse<?> response) {
-        exposedHeaders.forEach(header -> response.header(ACCESS_CONTROL_EXPOSE_HEADERS, header));
+        if (corsConfiguration.isSingleHeader()) {
+            String headerValue = String.join(",", exposedHeaders);
+            if (StringUtils.isNotEmpty(headerValue)) {
+                response.header(ACCESS_CONTROL_EXPOSE_HEADERS, headerValue);
+            }
+        } else {
+            exposedHeaders.forEach(header -> response.header(ACCESS_CONTROL_EXPOSE_HEADERS, header));
+        }
     }
 
     /**
@@ -203,7 +204,6 @@ public class CorsFilter implements HttpServerFilter {
     protected void setVary(MutableHttpResponse<?> response) {
         response.header(VARY, ORIGIN);
     }
-
 
     /**
      * @param origin   The origin
@@ -225,10 +225,16 @@ public class CorsFilter implements HttpServerFilter {
      * @param optionalAllowHeaders A list with optional allow headers
      * @param response             The {@link MutableHttpResponse} object
      */
-    protected void setAllowHeaders(List optionalAllowHeaders, MutableHttpResponse response) {
-        optionalAllowHeaders.forEach(header ->
-            response.header(ACCESS_CONTROL_ALLOW_HEADERS, header.toString())
-        );
+    protected void setAllowHeaders(List<?> optionalAllowHeaders, MutableHttpResponse response) {
+        List<String> allowHeaders = optionalAllowHeaders.stream().map(Object::toString).collect(Collectors.toList());
+        if (corsConfiguration.isSingleHeader()) {
+            String headerValue = String.join(",", allowHeaders);
+            if (StringUtils.isNotEmpty(headerValue)) {
+                response.header(ACCESS_CONTROL_ALLOW_HEADERS, headerValue);
+            }
+        } else {
+            allowHeaders.forEach(header -> response.header(ACCESS_CONTROL_ALLOW_HEADERS, header));
+        }
     }
 
     /**

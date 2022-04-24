@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,11 +13,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.netty.stream;
 
 import io.micronaut.core.annotation.Internal;
 import io.micronaut.http.HttpStatus;
+import io.micronaut.http.netty.channel.ChannelPipelineCustomizer;
 import io.micronaut.http.netty.reactive.CancelledSubscriber;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
@@ -28,10 +28,11 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpResponseStatus;
 import io.netty.handler.codec.http.HttpUtil;
 import io.netty.handler.codec.http.LastHttpContent;
+import io.netty.util.AttributeKey;
 import io.netty.util.ReferenceCountUtil;
 import org.reactivestreams.Publisher;
 import org.reactivestreams.Subscriber;
-import org.reactivestreams.Subscription;
+import reactor.core.publisher.Flux;
 
 /**
  * Handler that converts written {@link StreamedHttpRequest} messages into {@link HttpRequest} messages
@@ -129,7 +130,7 @@ public class HttpStreamsClientHandler extends HttpStreamsHandler<HttpResponse, H
     }
 
     @Override
-    protected HttpResponse createStreamedMessage(HttpResponse response, Publisher<HttpContent> stream) {
+    protected HttpResponse createStreamedMessage(HttpResponse response, Publisher<? extends HttpContent> stream) {
         return new DelegateStreamedHttpResponse(response, stream);
     }
 
@@ -141,6 +142,11 @@ public class HttpStreamsClientHandler extends HttpStreamsHandler<HttpResponse, H
         } else {
             super.subscribeSubscriberToStream(msg, subscriber);
         }
+    }
+
+    @Override
+    protected final boolean isClient() {
+        return true;
     }
 
     @Override
@@ -160,14 +166,7 @@ public class HttpStreamsClientHandler extends HttpStreamsHandler<HttpResponse, H
             } else {
                 awaiting100ContinueMessage.subscribe(new CancelledSubscriber<>());
                 awaiting100ContinueMessage = null;
-                awaiting100Continue.onSubscribe(new Subscription() {
-                    public void request(long n) {
-                    }
-
-                    public void cancel() {
-                    }
-                });
-                awaiting100Continue.onComplete();
+                Flux.<HttpContent>empty().subscribe(awaiting100Continue);
                 awaiting100Continue = null;
                 super.channelRead(ctx, msg);
             }
@@ -179,6 +178,15 @@ public class HttpStreamsClientHandler extends HttpStreamsHandler<HttpResponse, H
             }
         } else {
             super.channelRead(ctx, msg);
+        }
+    }
+
+    @Override
+    public void write(final ChannelHandlerContext ctx, Object msg, final ChannelPromise promise) throws Exception {
+        if (ctx.channel().attr(AttributeKey.valueOf(ChannelPipelineCustomizer.HANDLER_HTTP_CHUNK)).get() == Boolean.TRUE) {
+            ctx.write(msg, promise);
+        } else {
+            super.write(ctx, msg, promise);
         }
     }
 }

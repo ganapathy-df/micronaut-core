@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,17 +13,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.inject.configuration;
 
+import io.micronaut.context.annotation.ConfigurationReader;
+import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.naming.NameUtils;
+import io.micronaut.core.util.CollectionUtils;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
+import io.micronaut.inject.ast.Element;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * <p>A builder for producing metadata for the available {@link io.micronaut.context.annotation.ConfigurationProperties}.</p>
@@ -36,9 +41,14 @@ import java.util.List;
  * @since 1.0
  */
 public abstract class ConfigurationMetadataBuilder<T> {
-
+    private static ConfigurationMetadataBuilder<?> currentBuilder = null;
     private final List<PropertyMetadata> properties = new ArrayList<>();
     private final List<ConfigurationMetadata> configurations = new ArrayList<>();
+
+    /**
+     * @return The originating elements for the builder.
+     */
+    public abstract @NonNull Element[] getOriginatingElements();
 
     /**
      * @return The properties
@@ -71,11 +81,26 @@ public abstract class ConfigurationMetadataBuilder<T> {
     public ConfigurationMetadata visitProperties(T type,
                                                  @Nullable String description) {
 
-        String path = buildTypePath(type, type);
+        AnnotationMetadata annotationMetadata = getAnnotationMetadata(type);
+        return visitProperties(type, description, annotationMetadata);
+    }
+
+    /**
+     * Visit a {@link io.micronaut.context.annotation.ConfigurationProperties} class.
+     *
+     * @param type        The type of the {@link io.micronaut.context.annotation.ConfigurationProperties}
+     * @param description A description
+     * @param annotationMetadata the annotation metadata
+     * @return This {@link ConfigurationMetadata}
+     */
+    public ConfigurationMetadata visitProperties(T type, @Nullable String description, @NonNull AnnotationMetadata annotationMetadata) {
+        String path = buildTypePath(type, type, annotationMetadata);
         ConfigurationMetadata configurationMetadata = new ConfigurationMetadata();
         configurationMetadata.name = NameUtils.hyphenate(path, true);
         configurationMetadata.type = getTypeString(type);
         configurationMetadata.description = description;
+        configurationMetadata.includes = CollectionUtils.setOf(annotationMetadata.stringValues(ConfigurationReader.class, "includes"));
+        configurationMetadata.excludes = CollectionUtils.setOf(annotationMetadata.stringValues(ConfigurationReader.class, "excludes"));
         this.configurations.add(configurationMetadata);
         return configurationMetadata;
     }
@@ -183,12 +208,44 @@ public abstract class ConfigurationMetadataBuilder<T> {
     protected abstract String buildTypePath(T owningType, T declaringType);
 
     /**
+     * Variation of {@link #buildPropertyPath(Object, Object, String)} for types.
+     *
+     * @param owningType    The owning type
+     * @param declaringType The type
+     * @param annotationMetadata The annotation metadata
+     * @return The type path
+     */
+    protected abstract String buildTypePath(T owningType, T declaringType, AnnotationMetadata annotationMetadata);
+
+    /**
      * Convert the given type to a string.
      *
      * @param type The type
      * @return The string
      */
     protected abstract String getTypeString(T type);
+
+    /**
+     * @param type The type
+     * @return The annotation metadata for the type
+     */
+    protected abstract AnnotationMetadata getAnnotationMetadata(T type);
+
+    /**
+     * Obtains the currently active metadata builder.
+     * @return The builder
+     */
+    public static Optional<ConfigurationMetadataBuilder<?>> getConfigurationMetadataBuilder() {
+        return Optional.ofNullable(currentBuilder);
+    }
+
+    /**
+     * Sets or clears the current {@link ConfigurationMetadataBuilder}.
+     * @param builder the builder
+     */
+    public static void setConfigurationMetadataBuilder(@Nullable ConfigurationMetadataBuilder<?> builder) {
+        currentBuilder = builder;
+    }
 
     /**
      * Quote a string.

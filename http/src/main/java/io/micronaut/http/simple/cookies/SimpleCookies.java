@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.simple.cookies;
 
 import io.micronaut.core.convert.ArgumentConversionContext;
@@ -21,13 +20,7 @@ import io.micronaut.core.convert.ConversionService;
 import io.micronaut.http.cookie.Cookie;
 import io.micronaut.http.cookie.Cookies;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Simple {@link Cookies} implementation.
@@ -87,6 +80,14 @@ public class SimpleCookies implements Cookies {
      * @return previous value for given name
      */
     public Cookie put(CharSequence name, Cookie cookie) {
-        return cookies.put(name, cookie);
+        return this.cookies.put(name, cookie);
+    }
+
+    /**
+     * Put a set of new cookies.
+     * @param cookies   Map of cookie names and cookies
+     */
+    public void putAll(Map<CharSequence, Cookie> cookies) {
+        this.cookies.putAll(cookies);
     }
 }

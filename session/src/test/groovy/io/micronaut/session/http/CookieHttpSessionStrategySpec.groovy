@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,21 +15,22 @@
  */
 package io.micronaut.session.http
 
+import io.micronaut.core.convert.ConversionService
+import io.micronaut.http.HttpHeaders
+import io.micronaut.http.HttpRequest
+import io.micronaut.http.HttpResponse
+import io.micronaut.http.cookie.Cookie
+import io.micronaut.http.cookie.SameSite
+import io.micronaut.http.netty.cookies.NettyCookie
+import io.micronaut.http.server.HttpServerConfiguration
+import io.micronaut.http.server.netty.NettyHttpRequest
+import io.micronaut.session.Session
 import io.netty.channel.ChannelHandlerContext
 import io.netty.handler.codec.http.DefaultFullHttpRequest
 import io.netty.handler.codec.http.HttpMethod
 import io.netty.handler.codec.http.HttpVersion
 import io.netty.handler.codec.http.cookie.CookieEncoder
 import io.netty.handler.codec.http.cookie.ServerCookieEncoder
-import io.micronaut.core.convert.ConversionService
-import io.micronaut.http.HttpHeaders
-import io.micronaut.http.HttpRequest
-import io.micronaut.http.HttpResponse
-import io.micronaut.http.cookie.Cookie
-import io.micronaut.http.netty.cookies.NettyCookie
-import io.micronaut.http.server.HttpServerConfiguration
-import io.micronaut.http.server.netty.NettyHttpRequest
-import io.micronaut.session.Session
 import spock.lang.Specification
 
 import java.util.regex.Pattern
@@ -55,12 +56,13 @@ class CookieHttpSessionStrategySpec extends Specification {
     }
 
     void "test encode default cookie config"() {
-
         given:
         def configuration = new HttpSessionConfiguration()
         if (domain) configuration.domainName = domain
         if (path) configuration.cookiePath = path
         if (prefix) configuration.prefix = prefix
+        configuration.cookieSecure = configSecure
+        if (sameSite) configuration.sameSite = sameSite
         CookieHttpSessionStrategy strategy = new CookieHttpSessionStrategy(configuration)
 
         def request = Mock(HttpRequest)
@@ -78,15 +80,21 @@ class CookieHttpSessionStrategySpec extends Specification {
         expected instanceof Pattern ? expected.matcher(header).find() : header == expected
 
 
-
         where:
-        id     | prefix | path   | domain        | encoded             | expired | secure | expected
-        "1234" | null   | null   | null          | encode(id)          | false   | false  | "SESSION=$encoded; HTTPOnly"
-        "1234" | "foo-" | null   | null          | encode(prefix + id) | false   | false  | "SESSION=$encoded; HTTPOnly"
-        "1234" | null   | "/foo" | null          | encode(id)          | false   | false  | "SESSION=$encoded; Path=/foo; HTTPOnly"
-        "1234" | null   | null   | "example.com" | encode(id)          | false   | false  | "SESSION=$encoded; Domain=example.com; HTTPOnly"
-        "1234" | null   | null   | null          | encode(id)          | true    | false  | ~/SESSION=; Max-Age=0; Expires=.*; HTTPOnly/
-        "1234" | null   | null   | null          | encode(id)          | false   | true   | "SESSION=$encoded; Secure; HTTPOnly"
+        id     | prefix | path   | domain        | encoded             | expired | secure | configSecure | sameSite       | expected
+        "1234" | null   | null   | null          | encode(id)          | false   | false  | true         | SameSite.Lax   | "SESSION=$encoded; Path=/; Secure; HTTPOnly; SameSite=Lax"
+        "1234" | null   | null   | null          | encode(id)          | false   | false  | true         | SameSite.Strict| "SESSION=$encoded; Path=/; Secure; HTTPOnly; SameSite=Strict"
+        "1234" | null   | null   | null          | encode(id)          | false   | false  | true         | SameSite.None  | "SESSION=$encoded; Path=/; Secure; HTTPOnly; SameSite=None"
+        "1234" | null   | null   | null          | encode(id)          | false   | false  | true         | null           | "SESSION=$encoded; Path=/; Secure; HTTPOnly"
+        "1234" | null   | null   | null          | encode(id)          | false   | false  | true         | null           | "SESSION=$encoded; Path=/; Secure; HTTPOnly"
+        "1234" | null   | null   | null          | encode(id)          | false   | false  | false        | null           | "SESSION=$encoded; Path=/; HTTPOnly"
+        "1234" | "foo-" | null   | null          | encode(prefix + id) | false   | false  | false        | null           | "SESSION=$encoded; Path=/; HTTPOnly"
+        "1234" | null   | "/foo" | null          | encode(id)          | false   | false  | false        | null           | "SESSION=$encoded; Path=/foo; HTTPOnly"
+        "1234" | null   | null   | "example.com" | encode(id)          | false   | false  | false        | null           | "SESSION=$encoded; Path=/; Domain=example.com; HTTPOnly"
+        "1234" | null   | null   | null          | encode(id)          | true    | false  | false        | null           | ~/SESSION=; Max-Age=0; Expires=.*; Path=\/; HTTPOnly/
+        "1234" | null   | null   | null          | encode(id)          | false   | true   | false        | null           | "SESSION=$encoded; Path=/; HTTPOnly"
+        "1234" | null   | null   | null          | encode(id)          | false   | true   | true         | null           | "SESSION=$encoded; Path=/; Secure; HTTPOnly"
+        "1234" | null   | null   | null          | encode(id)          | false   | true   | null         | null           | "SESSION=$encoded; Path=/; Secure; HTTPOnly"
 
     }
 

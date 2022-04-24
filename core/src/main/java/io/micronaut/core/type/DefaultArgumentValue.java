@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,11 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.core.type;
 
 import io.micronaut.core.annotation.AnnotationMetadata;
 import io.micronaut.core.annotation.Internal;
+import io.micronaut.core.annotation.NonNull;
+import io.micronaut.core.annotation.Nullable;
 
 import java.lang.annotation.Annotation;
 import java.util.Map;
@@ -79,6 +80,18 @@ class DefaultArgumentValue<V> implements ArgumentValue<V> {
         return argument.synthesize(annotationClass);
     }
 
+    @Nullable
+    @Override
+    public <T extends Annotation> T synthesize(@NonNull Class<T> annotationClass, @NonNull String sourceAnnotation) {
+        return argument.synthesize(annotationClass, sourceAnnotation);
+    }
+
+    @Nullable
+    @Override
+    public <T extends Annotation> T synthesizeDeclared(@NonNull Class<T> annotationClass, @NonNull String sourceAnnotation) {
+        return argument.synthesizeDeclared(annotationClass, sourceAnnotation);
+    }
+
     @Override
     public Annotation[] synthesizeAll() {
         return argument.synthesizeAll();
@@ -90,7 +103,7 @@ class DefaultArgumentValue<V> implements ArgumentValue<V> {
     }
 
     @Override
-    public boolean equalsType(Argument<?> o) {
+    public boolean equalsType(@Nullable Argument<?> o) {
         return argument.equalsType(o);
     }
 

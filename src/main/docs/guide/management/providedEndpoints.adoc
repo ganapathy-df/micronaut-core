@@ -8,15 +8,19 @@ When the `management` dependency is added to your project, the following built-i
 | `/beans`
 |Returns information about the loaded bean definitions in the application (see <<beansEndpoint, BeansEndpoint>>)
 
-|api:management.endpoint.info.InfoEndpoint[]
-| `/info`
-|Returns static information from the state of the application (see <<infoEndpoint, InfoEndpoint>>)
-
 |api:management.endpoint.health.HealthEndpoint[]
 | `/health`
 |Returns information about the "health" of the application (see <<healthEndpoint, HealthEndpoint>>)
 
-|api:configuration.metrics.management.endpoint.MetricsEndpoint[]
+|api:management.endpoint.info.InfoEndpoint[]
+| `/info`
+|Returns static information from the state of the application (see <<infoEndpoint, InfoEndpoint>>)
+
+|api:management.endpoint.loggers.LoggersEndpoint[]
+| `/loggers`
+|Returns information about available loggers and permits changing the configured log level (see <<loggersEndpoint, LoggersEndpoint>>)
+
+| <<metricsEndpoint,MetricsEndpoint>>
 | `/metrics`
 |Return the <<metricsEndpoint,application metrics>>. Requires the `micrometer-core` configuration on the classpath.
 
@@ -28,9 +32,9 @@ When the `management` dependency is added to your project, the following built-i
 | `/routes`
 |Returns information about URIs available to be called for your application (see <<routesEndpoint, RoutesEndpoint>>)
 
-|api:management.endpoint.loggers.LoggersEndpoint[]
-| `/loggers`
-|Returns information about available loggers and permits changing the configured log level (see <<loggersEndpoint, LoggersEndpoint>>)
+|api:management.endpoint.threads.ThreadDumpEndpoint[]
+| `/threaddump`
+|Returns information about the current threads in the application.
 
 |===
 
@@ -40,16 +44,35 @@ In addition, the following built-in endpoint(s) are provided by the `management`
 |===
 |Endpoint|URI|Description
 
+|api:management.endpoint.env.EnvironmentEndpoint[]
+| `/env`
+|Returns information about the environment and its property sources (see <<environmentEndpoint, EnvironmentEndpoint>>)
+
+|<<cachesEndpoint, CachesEndpoint>>
+| `/caches`
+|Returns information about the caches and permits invalidating them (see <<cachesEndpoint, CachesEndpoint>>)
+
 |api:management.endpoint.stop.ServerStopEndpoint[]
 | `/stop`
 |Shuts down the application server (see <<stopEndpoint, ServerStopEndpoint>>)
 
 |===
 
-
 WARNING: It is possible to open all endpoints for unauthenticated access defining `endpoints.all.sensitive: false` but
 this should be used with care because private and sensitive information will be exposed.
 
+=== Management Port
+
+By default, all management endpoints are exposed over the same port as the application. You can alter this behaviour by specifying the `endpoints.all.port` setting:
+
+[source,yaml]
+----
+endpoints:
+  all:
+    port: 8085
+----
+
+In the above example the management endpoints are exposed only over port 8085.
 
 === JMX
 

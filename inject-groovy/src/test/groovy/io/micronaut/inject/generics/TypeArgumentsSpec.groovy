@@ -1,6 +1,6 @@
 package io.micronaut.inject.generics
 
-import io.micronaut.AbstractBeanDefinitionSpec
+import io.micronaut.ast.transform.test.AbstractBeanDefinitionSpec
 import io.micronaut.inject.BeanDefinition
 
 class TypeArgumentsSpec extends AbstractBeanDefinitionSpec {
@@ -46,6 +46,5 @@ interface ChainE<A, B, C, D> {
         definition.getTypeArguments("test.ChainE")[1].type == Number
         definition.getTypeArguments("test.ChainE")[2].type == String
         definition.getTypeArguments("test.ChainE")[3].type == Byte
-
     }
 }

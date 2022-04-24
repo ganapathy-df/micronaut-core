@@ -1,11 +1,11 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2020 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- * http://www.apache.org/licenses/LICENSE-2.0
+ * https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,18 +13,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package io.micronaut.http.netty.channel;
 
-import io.micronaut.context.annotation.Bean;
+import io.micronaut.context.annotation.BootstrapContextCompatible;
 import io.micronaut.context.annotation.Factory;
+import io.micronaut.core.annotation.TypeHint;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.channel.socket.nio.NioServerSocketChannel;
+import io.netty.channel.socket.nio.NioSocketChannel;
 import io.netty.util.NettyRuntime;
 import io.netty.util.concurrent.DefaultThreadFactory;
 import io.netty.util.internal.SystemPropertyUtil;
+import jakarta.inject.Named;
+import jakarta.inject.Singleton;
 
-import javax.inject.Named;
-import javax.inject.Singleton;
 import java.util.concurrent.ThreadFactory;
 
 /**
@@ -36,6 +38,13 @@ import java.util.concurrent.ThreadFactory;
  */
 @Singleton
 @Factory
+@TypeHint(value = {
+        NioServerSocketChannel.class,
+        NioSocketChannel.class
+}, typeNames = {"sun.security.ssl.SSLContextImpl$TLSContext"},
+   accessType = {TypeHint.AccessType.ALL_DECLARED_CONSTRUCTORS, TypeHint.AccessType.ALL_DECLARED_FIELDS, TypeHint.AccessType.ALL_PUBLIC_CONSTRUCTORS}
+)
+@BootstrapContextCompatible
 public class NettyThreadFactory {
 
     /**
@@ -53,10 +62,10 @@ public class NettyThreadFactory {
      *
      * @return The thread factory
      */
-    @Bean
     @Singleton
     @Named(NAME)
-    ThreadFactory nettyThreadFactory() {
-        return new DefaultThreadFactory(NioEventLoopGroup.class);
+    @BootstrapContextCompatible
+    protected ThreadFactory nettyThreadFactory() {
+        return new DefaultThreadFactory("default-" + DefaultThreadFactory.toPoolName(NioEventLoopGroup.class));
     }
 }

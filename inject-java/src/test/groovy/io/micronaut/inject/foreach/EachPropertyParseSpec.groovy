@@ -1,5 +1,5 @@
 /*
- * Copyright 2017-2018 original authors
+ * Copyright 2017-2019 original authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,7 +17,7 @@ package io.micronaut.inject.foreach
 
 import io.micronaut.context.annotation.ConfigurationReader
 import io.micronaut.context.annotation.Property
-import io.micronaut.inject.AbstractTypeElementSpec
+import io.micronaut.annotation.processing.test.AbstractTypeElementSpec
 import io.micronaut.inject.BeanDefinition
 
 /**
@@ -25,6 +25,7 @@ import io.micronaut.inject.BeanDefinition
  * @since 1.0
  */
 class EachPropertyParseSpec extends AbstractTypeElementSpec {
+
     void "test configuration properties inheritance from non-configuration properties"() {
         when:
         BeanDefinition beanDefinition = buildBeanDefinition('test.MyProperties', '''
