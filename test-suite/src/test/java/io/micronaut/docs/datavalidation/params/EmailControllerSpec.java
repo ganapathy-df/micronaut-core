@@ -15,6 +15,7 @@
  */
 package io.micronaut.docs.datavalidation.params;
 
+import io.micronaut.docs.ExtractedSeparateClass21111;
 import io.micronaut.context.ApplicationContext;
 import io.micronaut.http.HttpResponse;
 import io.micronaut.http.HttpStatus;
@@ -38,9 +39,7 @@ public class EmailControllerSpec {
     @BeforeClass
     public static void setupServer() {
         server = ApplicationContext.run(EmbeddedServer.class, Collections.singletonMap("spec.name", "datavalidationparams"));
-        client = server
-                .getApplicationContext()
-                .createBean(HttpClient.class, server.getURL());
+        client = ExtractedSeparateClass21111.getClient11688(server);
     }
 
     @AfterClass
